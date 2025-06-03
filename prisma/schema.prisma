@@ -1,0 +1,127 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// generator client {
+//   provider = "prisma-client-js"
+//   output   = "../src/generated/prisma"
+// }
+
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  keycloakId  String   @unique @map("keycloak_id")
+  email       String   @unique
+  firstName   String?  @map("first_name")
+  lastName    String?  @map("last_name")
+  username    String   @unique
+  isActive    Boolean  @default(true) @map("is_active")
+  lastLogin   DateTime? @map("last_login")
+  roles       String[] @default(["user"])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+
+  // Relations
+  demandes    Demande[]
+  validations Validation[]
+
+  @@map("users")
+}
+
+model Demande {
+  id                String   @id @default(uuid()) @db.Uuid
+  
+  // Informations du demandeur
+  demandeur         String
+  firstName         String   @map("first_name")
+  lastName          String   @map("last_name")
+  
+  // Détails de la demande
+  detailsUsage      String   @map("details_usage")
+  dureeAcces        String   @map("duree_acces")
+  businessOwner     String   @map("business_owner")
+  dateDebut         DateTime @map("date_debut")
+  dateFin           DateTime @map("date_fin")
+  direction         String
+  directionBu       String   @map("direction_bu")
+  environnement     String
+  extraction        String   // "Oui" ou "Non"
+  finaliteAccess    String   @map("finalite_access")
+  interneExterne    String   @map("interne_externe") // "Interne" ou "Externe"
+  schema            String[] // Array de tables/schemas
+  
+  // Fichier attaché
+  attachmentName    String?  @map("attachment_name")
+  attachmentPath    String?  @map("attachment_path")
+  
+  // SPOC fields (à remplir après)
+  spocData          String?  @map("spoc_data")
+  spocDt            String?  @map("spoc_dt")
+  
+  // Statut de la demande
+  status            DemandeStatus @default(EN_ATTENTE)
+  commentaireRejet  String?  @map("commentaire_rejet")
+  
+  // Relation avec l'utilisateur
+  userId            String   @map("user_id") @db.Uuid
+  user              User     @relation(fields: [userId], references: [id])
+  
+  // Relations avec les validations
+  validations       Validation[]
+  
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("demandes")
+}
+
+model Validation {
+  id          String          @id @default(uuid()) @db.Uuid
+  
+  // Ordre de validation (1, 2, 3, 4)
+  ordre       Int
+  
+  // Statut de cette validation
+  status      ValidationStatus @default(EN_ATTENTE)
+  
+  // Commentaire (obligatoire si rejeté)
+  commentaire String?
+  
+  // Date de validation/rejet
+  dateAction  DateTime?        @map("date_action")
+  
+  // Relations
+  demandeId   String          @map("demande_id") @db.Uuid
+  demande     Demande         @relation(fields: [demandeId], references: [id])
+  
+  validateurId String?        @map("validateur_id") @db.Uuid
+  validateur   User?          @relation(fields: [validateurId], references: [id])
+  
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@map("validations")
+}
+
+enum DemandeStatus {
+  EN_ATTENTE
+  EN_COURS_VALIDATION
+  APPROUVEE
+  REJETEE
+}
+
+enum ValidationStatus {
+  EN_ATTENTE
+  APPROUVEE
+  REJETEE
+}
