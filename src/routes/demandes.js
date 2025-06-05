@@ -344,6 +344,7 @@ router.get(
   }
 );
 
+//Recuppere les demandes 
 router.get(
   "/demande-a-valider",
   keycloak.protect(),
@@ -678,4 +679,108 @@ router.post(
   }
 );
 
+
+
+
+// // ADMIN ONLY: Mettre à jour les champs SPOC
+// router.patch('/spoc/:demandeId', keycloak.protect(), requireAdmin, async (req, res) => {
+//   try {
+//     const { demandeId } = req.params;
+//     const { spocData, spocDt } = req.body;
+
+//     const demande = await prisma.demande.update({
+//       where: { id: demandeId },
+//       data: {
+//         spocData: spocData,
+//         spocDt: spocDt
+//       }
+//     });
+
+//     res.json({
+//       success: true,
+//       message: 'Champs SPOC mis à jour avec succès',
+//       demande: demande
+//     });
+
+//   } catch (error) {
+//     console.error('Erreur mise à jour SPOC:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Erreur lors de la mise à jour'
+//     });
+//   }
+// });
+
+
+
+// // Fonction utilitaire pour obtenir le statut détaillé d'une demande
+// router.get('/status/:demandeId', keycloak.protect(), requireUser, async (req, res) => {
+//   try {
+//     const { demandeId } = req.params;
+    
+//     const demande = await prisma.demande.findUnique({
+//       where: { id: demandeId },
+//       include: {
+//         validations: {
+//           include: {
+//             validateur: {
+//               select: {
+//                 firstName: true,
+//                 lastName: true,
+//                 email: true
+//               }
+//             }
+//           },
+//           orderBy: { ordre: 'asc' }
+//         }
+//       }
+//     });
+
+//     if (!demande) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Demande non trouvée'
+//       });
+//     }
+
+//     // Calculer les statistiques de validation
+//     const totalValidations = demande.validations.length;
+//     const validationsApprouvees = demande.validations.filter(v => v.status === 'APPROUVEE').length;
+//     const validationsRejetees = demande.validations.filter(v => v.status === 'REJETEE').length;
+//     const validationsEnAttente = demande.validations.filter(v => v.status === 'EN_ATTENTE').length;
+
+//     res.json({
+//       success: true,
+//       demande: demande,
+//       statusSummary: {
+//         total: totalValidations,
+//         approuvees: validationsApprouvees,
+//         rejetees: validationsRejetees,
+//         enAttente: validationsEnAttente,
+//         progression: `${validationsApprouvees}/${totalValidations} validations approuvées`
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Erreur récupération statut:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Erreur lors de la récupération du statut'
+//     });
+//   }
+// });
+
+
+
+
+
 module.exports = router;
+
+
+
+
+
+
+
+
+

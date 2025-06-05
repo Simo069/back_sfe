@@ -14,6 +14,8 @@ const app = express();
 
 const authRoutes = require('./routes/auth');
 const demandeRoutes = require('./routes/demandes');
+const userRoutes = require('./routes/user');
+const departementRoutes = require('./routes/departement');
 const {requireAdmin , requireManager , requireUser , hasRole} = require('./middleware/roleMiddlewar');
 
 
@@ -47,6 +49,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/demandes', demandeRoutes);
+app.use('/api/departement' , departementRoutes);
+app.use('/api/users' , userRoutes);
+
 
 // Error handling middleware
 app.use((error, req, res, next) => {

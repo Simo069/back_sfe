@@ -552,13 +552,15 @@ router.post('/login', async (req, res) => {
           username: decodedToken.preferred_username,
           roles: appRoles.length > 0 ? appRoles : ["user"],
           lastLogin: new Date()
-        }
+        },
+        include : {departement:true}
       });
       created = true;
     } else {
       user = await prisma.user.update({
         where: { id: user.id },
-        data: { lastLogin: new Date() }
+        data: { lastLogin: new Date() },
+        include : {departement:true}
       });
     }
 
@@ -571,6 +573,7 @@ router.post('/login', async (req, res) => {
         lastName: user.lastName,
         username: user.username,
         roles: user.roles,
+        departement: user.departement
       },
       tokens: {
         access_token,
@@ -590,7 +593,7 @@ router.post('/login', async (req, res) => {
 // Register route
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, firstName, lastName, role = "user" } = req.body;
+    const { email, password, firstName, lastName, role = "user" , departementId} = req.body;
     const username = email;
 
     const validRoles = ["user", "manager", "admin"];
@@ -600,7 +603,10 @@ router.post('/register', async (req, res) => {
         message: "Invalid role specified",
       });
     }
-
+    // Si c'est un user normal, ignorer le departementId même s'il est fourni
+    if (role === 'user' && departementId) {
+      departementId = null; // Les users normaux n'appartiennent pas à un département
+    }
     const adminToken = await getAdminToken();
     
     const userPayload = {
@@ -658,7 +664,10 @@ router.post('/register', async (req, res) => {
         firstName,
         lastName,
         username,
-        roles: [role]
+        roles: [role],
+        include: {
+        departement: true
+      }
       }
     });
 
@@ -672,6 +681,7 @@ router.post('/register', async (req, res) => {
         lastName: user.lastName,
         username: user.username,
         roles: user.roles,
+        departement: user.departement
       }
     });
 
@@ -690,7 +700,8 @@ router.get('/verify', keycloak.protect(), async (req, res) => {
   try {
     const keycloakId = req.kauth.grant.access_token.content.sub;
     const user = await prisma.user.findUnique({ 
-      where: { keycloakId } 
+      where: { keycloakId }, 
+      include: {departement: true}
     });
     
     if (!user) {
@@ -706,6 +717,7 @@ router.get('/verify', keycloak.protect(), async (req, res) => {
         lastName: user.lastName,
         username: user.username,
         roles: user.roles,
+        departement : user.departement
       }
     });
   } catch (error) {
@@ -779,5 +791,10 @@ router.post('/logout', keycloak.protect(), async (req, res) => {
     res.status(500).json({ success: false, message: 'Logout failed' });
   }
 });
+
+
+
+
+
 
 module.exports = router;
