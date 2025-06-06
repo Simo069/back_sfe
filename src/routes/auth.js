@@ -665,9 +665,10 @@ router.post('/register', async (req, res) => {
         lastName,
         username,
         roles: [role],
-        include: {
-        departement: true
-      }
+        
+      },
+      include: {
+        departement: true 
       }
     });
 
