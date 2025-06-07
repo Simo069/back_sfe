@@ -14,16 +14,29 @@ const {
   hasRole,
 } = require("../middleware/roleMiddlewar");
 
-// cree departement
+// helper function
+const formatDate = (date) => {
+  const options = {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false, // 24-hour format
+  };
 
+  return new Date(date).toLocaleString("fr-FR", options).replace(",", "");
+};
+
+// cree departement
 router.post(
-  "/departements",
+  "/add-departement",
   keycloak.protect(),
   requireAdmin,
   async (req, res) => {
     try {
-      const { nom, description } = req.body;
-      if (!nom) {
+      const { name, description } = req.body;
+      if (!name) {
         return res.status(400).json({
           success: false,
           message: "Le nom du département est requis",
@@ -31,7 +44,7 @@ router.post(
       }
       const departement = await prisma.departement.create({
         data: {
-          nom,
+          nom: name,
           description: description || null,
         },
       });
@@ -58,39 +71,63 @@ router.post(
 );
 
 // Lister els prisma.departements
-router.get("/departements", keycloak.protect(), async (req, res) => {
-  try {
-    const departements = await prisma.departement.findMany({
-      where: { isActive: true },
-      include: {
-        managers: {
-          where: {
-            roles: { has: "manager" },
-            isActive: true,
-          },
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            username: true,
+router.get(
+  "/get-departements",
+  keycloak.protect(),
+  requireAdmin,
+  async (req, res) => {
+    try {
+      // const {search } = req.query ;
+
+      // whereClause = {
+      //   isActive: true,
+      //   AND : [
+      //     {
+      //       OR : [
+      //         {nom : {contains: search , mode : "insensitive"}},
+      //         {desc : {contains: search , mode : "insensitive"}},
+      //       ]
+      //     }
+      //   ]
+      // };
+      const departementsRaw = await prisma.departement.findMany({
+        where: { isActive: true },
+        include: {
+          managers: {
+            where: {
+              roles: { has: "manager" },
+              isActive: true,
+            },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              username: true,
+            },
           },
         },
-      },
-      orderBy: { nom: "Asc" },
-    });
-    res.json({
-      success: true,
-      departements,
-    });
-  } catch (error) {
-    console.error("Erreur récupération départements:", error);
-    res.status(500).json({
-      success: false,
-      message: "Erreur lors de la récupération des départements",
-    });
+        orderBy: { nom: "asc" },
+      });
+
+      const departements = departementsRaw.map((dept) => ({
+        ...dept,
+        createdAt: formatDate(dept.createdAt),
+      }));
+
+      res.json({
+        success: true,
+        departements,
+      });
+    } catch (error) {
+      console.error("Erreur récupération départements:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la récupération des départements",
+      });
+    }
   }
-});
+);
 
 // Modifier un département (Admin seulement)
 router.put(
@@ -100,13 +137,12 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { nom, description, isActive } = req.body;
+      const { nom, description } = req.body;
       const departement = await prisma.departement.update({
         where: { id },
         data: {
           ...(nom && { nom }),
           ...(description !== undefined && { description }),
-          ...(isActive !== undefined && { isActive }),
         },
       });
 
@@ -131,5 +167,39 @@ router.put(
   }
 );
 
+//Supprimer departement
+router.delete(
+  "/delete-departements/:id",
+  keycloak.protect(),
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      // Vérifie si le département existe
+      const existing = await prisma.departement.findUnique({ where: { id } });
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: "Département non trouvé",
+        });
+      }
 
-module.exports= router;
+      await prisma.departement.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      res.json({
+        success: true,
+        message: "Département supprimé avec succès",
+      });
+    } catch (error) {
+      console.error("Erreur suppression département:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la suppression du département",
+      });
+    }
+  }
+);
+
+module.exports = router;

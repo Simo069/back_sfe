@@ -7,7 +7,6 @@
 
 // const router = express.Router();
 
-
 // // Login route
 // router.post('/login', async (req, res) => {
 //   try {
@@ -85,7 +84,7 @@
 
 //     // Create user in Keycloak
 //     const adminToken = await getAdminToken();
-    
+
 //     const userPayload = {
 //       username,
 //       email,
@@ -167,7 +166,6 @@
 //   }
 // }
 
-
 // // Logout route
 // router.post('/logout', keycloak.protect(), async (req, res) => {
 //   try {
@@ -183,7 +181,7 @@
 //   try {
 //     const keycloakId = req.kauth.grant.access_token.content.sub;
 //     const user = await User.findOne({ where: { keycloakId } });
-    
+
 //     if (!user) {
 //       return res.status(404).json({ success: false, message: 'User not found' });
 //     }
@@ -205,10 +203,7 @@
 
 // module.exports = router;
 
-
 // routes/auth.js
-
-
 
 // const express = require('express');
 // const jwt = require('jsonwebtoken');
@@ -217,7 +212,6 @@
 // const User = require('../models/User');
 
 // const router = express.Router();
-
 
 // // Login route
 // router.post('/login', async (req, res) => {
@@ -312,7 +306,7 @@
 //     }
 //     // Create user in Keycloak
 //     const adminToken = await getAdminToken();
-    
+
 //     const userPayload = {
 //       username,
 //       email,
@@ -361,8 +355,6 @@
 //     const keycloakUserId = locationHeader.split('/').pop();
 
 //     await assignKeycloakRole(adminToken, keycloakUserId, role);
-
-
 
 //     // Create user in local database
 //     const user = await User.create({
@@ -456,7 +448,6 @@
 //   }
 // }
 
-
 // // Logout route
 // router.post('/logout', keycloak.protect(), async (req, res) => {
 //   try {
@@ -472,7 +463,7 @@
 //   try {
 //     const keycloakId = req.kauth.grant.access_token.content.sub;
 //     const user = await User.findOne({ where: { keycloakId } });
-    
+
 //     if (!user) {
 //       return res.status(404).json({ success: false, message: 'User not found' });
 //     }
@@ -495,19 +486,22 @@
 
 // module.exports = router;
 
-
-
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const axios = require('axios');
-const { keycloak } = require('../config/keycloak');
-const User = require('../models/User');
-const prisma = require('../config/database');
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const axios = require("axios");
+const { keycloak } = require("../config/keycloak");
+const User = require("../models/User");
+const prisma = require("../config/database");
 
 const router = express.Router();
-
+const {
+  requireAdmin,
+  requireManager,
+  requireUser,
+  hasRole,
+} = require("../middleware/roleMiddlewar");
 // Login route
-router.post('/login', async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -515,16 +509,16 @@ router.post('/login', async (req, res) => {
     const tokenResponse = await axios.post(
       `${process.env.KEYCLOAK_SERVER_URL}/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/token`,
       new URLSearchParams({
-        grant_type: 'password',
+        grant_type: "password",
         client_id: process.env.KEYCLOAK_CLIENT_ID,
         client_secret: process.env.KEYCLOAK_CLIENT_SECRET,
         username,
-        password
+        password,
       }),
       {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
       }
     );
 
@@ -538,7 +532,7 @@ router.post('/login', async (req, res) => {
 
     // Prisma findOrCreate equivalent
     let user = await prisma.user.findUnique({
-      where: { keycloakId: decodedToken.sub }
+      where: { keycloakId: decodedToken.sub },
     });
 
     let created = false;
@@ -551,16 +545,16 @@ router.post('/login', async (req, res) => {
           lastName: decodedToken.family_name,
           username: decodedToken.preferred_username,
           roles: appRoles.length > 0 ? appRoles : ["user"],
-          lastLogin: new Date()
+          lastLogin: new Date(),
         },
-        include : {departement:true}
+        include: { departement: true },
       });
       created = true;
     } else {
       user = await prisma.user.update({
         where: { id: user.id },
         data: { lastLogin: new Date() },
-        include : {departement:true}
+        include: { departement: true },
       });
     }
 
@@ -573,27 +567,33 @@ router.post('/login', async (req, res) => {
         lastName: user.lastName,
         username: user.username,
         roles: user.roles,
-        departement: user.departement
+        departement: user.departement,
       },
       tokens: {
         access_token,
-        refresh_token
-      }
+        refresh_token,
+      },
     });
-
   } catch (error) {
-    console.error('Login error:', error.response?.data || error.message);
+    console.error("Login error:", error.response?.data || error.message);
     res.status(401).json({
       success: false,
-      message: 'Invalid credentials'
+      message: "Invalid credentials",
     });
   }
 });
 
 // Register route
-router.post('/register', async (req, res) => {
+router.post("/register", async (req, res) => {
   try {
-    const { email, password, firstName, lastName, role = "user" , departementId} = req.body;
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      role = "user",
+      departementId,
+    } = req.body;
     const username = email;
 
     const validRoles = ["user", "manager", "admin"];
@@ -604,22 +604,24 @@ router.post('/register', async (req, res) => {
       });
     }
     // Si c'est un user normal, ignorer le departementId même s'il est fourni
-    if (role === 'user' && departementId) {
+    if (role === "user" && departementId) {
       departementId = null; // Les users normaux n'appartiennent pas à un département
     }
     const adminToken = await getAdminToken();
-    
+
     const userPayload = {
       username,
       email,
       firstName,
       lastName,
       enabled: true,
-      credentials: [{
-        type: 'password',
-        value: password,
-        temporary: false
-      }]
+      credentials: [
+        {
+          type: "password",
+          value: password,
+          temporary: false,
+        },
+      ],
     };
 
     // Check if user exists in Keycloak
@@ -645,14 +647,14 @@ router.post('/register', async (req, res) => {
       userPayload,
       {
         headers: {
-          'Authorization': `Bearer ${adminToken}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
       }
     );
 
     const locationHeader = createUserResponse.headers.location;
-    const keycloakUserId = locationHeader.split('/').pop();
+    const keycloakUserId = locationHeader.split("/").pop();
 
     await assignKeycloakRole(adminToken, keycloakUserId, role);
 
@@ -665,16 +667,15 @@ router.post('/register', async (req, res) => {
         lastName,
         username,
         roles: [role],
-        
       },
       include: {
-        departement: true 
-      }
+        departement: true,
+      },
     });
 
     res.json({
       success: true,
-      message: 'User registered successfully',
+      message: "User registered successfully",
       user: {
         id: user.id,
         email: user.email,
@@ -682,31 +683,32 @@ router.post('/register', async (req, res) => {
         lastName: user.lastName,
         username: user.username,
         roles: user.roles,
-        departement: user.departement
-      }
+        departement: user.departement,
+      },
     });
-
   } catch (error) {
-    console.error('Registration error:', error.response?.data || error.message);
+    console.error("Registration error:", error.response?.data || error.message);
     res.status(400).json({
       success: false,
-      message: 'Registration failed',
-      error: error.response?.data?.errorMessage || error.message
+      message: "Registration failed",
+      error: error.response?.data?.errorMessage || error.message,
     });
   }
 });
 
 // Verify token route
-router.get('/verify', keycloak.protect(), async (req, res) => {
+router.get("/verify", keycloak.protect(), async (req, res) => {
   try {
     const keycloakId = req.kauth.grant.access_token.content.sub;
-    const user = await prisma.user.findUnique({ 
-      where: { keycloakId }, 
-      include: {departement: true}
+    const user = await prisma.user.findUnique({
+      where: { keycloakId },
+      include: { departement: true },
     });
-    
+
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     res.json({
@@ -718,11 +720,11 @@ router.get('/verify', keycloak.protect(), async (req, res) => {
         lastName: user.lastName,
         username: user.username,
         roles: user.roles,
-        departement : user.departement
-      }
+        departement: user.departement,
+      },
     });
   } catch (error) {
-    res.status(401).json({ success: false, message: 'Invalid token' });
+    res.status(401).json({ success: false, message: "Invalid token" });
   }
 });
 
@@ -784,18 +786,14 @@ async function assignKeycloakRole(adminToken, userId, roleName) {
   }
 }
 
-router.post('/logout', keycloak.protect(), async (req, res) => {
+router.post("/logout", keycloak.protect(), async (req, res) => {
   try {
     req.kauth.logout();
-    res.json({ success: true, message: 'Logged out successfully' });
+    res.json({ success: true, message: "Logged out successfully" });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Logout failed' });
+    res.status(500).json({ success: false, message: "Logout failed" });
   }
 });
-
-
-
-
 
 
 module.exports = router;
