@@ -344,7 +344,7 @@ router.get(
   }
 );
 
-//Recuppere les demandes 
+//Recuppere les demandes
 router.get(
   "/demande-a-valider",
   keycloak.protect(),
@@ -446,7 +446,89 @@ router.get(
   }
 );
 
-//A - Valider
+
+
+// router.get(
+//   "/a-valider",
+//   keycloak.protect(),
+//   requireManager,
+//   async (req, res) => {
+//     try {
+//       const managerId = req.kauth.grant.access_token.content.sub;
+//       const user = await prisma.user.findUnique({
+//         where: { keycloakId: managerId },
+//       });
+
+//       if (!user.roles.includes("manager")) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "vous n'avez pas les droits pour récupérer ces informations",
+//         });
+//       }
+
+//       // Requête avec exclusions basées sur le statut du manager
+//       const demandes = await prisma.demande.findMany({
+//         where: {
+//           status: {
+//             in: ["EN_ATTENTE", "EN_COURS_VALIDATION"],
+//           },
+//           validations: {
+//             some: {
+//               status: "EN_ATTENTE", // Il doit y avoir une validation en attente
+//             },
+//           },
+//           NOT: {
+//             validations: {
+//               some: {
+//                 validateurId: managerId, // Si le manager a déjà validé ou rejeté
+//               },
+//             },
+//           },
+//         },
+//         include: {
+//           user: {
+//             select: {
+//               firstName: true,
+//               lastName: true,
+//               email: true,
+//               username: true,
+//             },
+//           },
+//           validations: {
+//             include: {
+//               validateur: {
+//                 select: {
+//                   firstName: true,
+//                   lastName: true,
+//                   email: true,
+//                 },
+//               },
+//             },
+//             orderBy: { ordre: "asc" },
+//           },
+//         },
+//         orderBy: { createdAt: "desc" },
+//       });
+
+//       res.json({
+//         success: true,
+//         demandes: demandes,
+//         count: demandes.length,
+//       });
+//     } catch (error) {
+//       console.error("Erreur récupération demandes à valider:", error);
+//       res.status(500).json({
+//         success: false,
+//         message: "Erreur lors de la récupération des demandes",
+//       });
+//     }
+//   }
+// );
+
+
+
+//valider demandes par manager
+
 router.get(
   "/a-valider",
   keycloak.protect(),
@@ -454,37 +536,87 @@ router.get(
   async (req, res) => {
     try {
       const managerId = req.kauth.grant.access_token.content.sub;
+
+      // Check if the manager has the right roles
       const user = await prisma.user.findUnique({
         where: { keycloakId: managerId },
       });
-      if (!user.roles.includes("admin")) {
-        res.status(400).json({
+
+      if (!user || !user.roles.includes("manager")) {
+        return res.status(403).json({
           success: false,
-          message: "vous avez pas les droits pour recuperer ces informations",
+          message: "vous n'avez pas les droits pour récupérer ces informations",
         });
-        return;
       }
 
-      const demandes = await prisma.demande.findMany({
-        where: {
-          status: {
-            in: ["EN_ATTENTE", "EN_COURS_VALIDATION"],
+      // Extract search and filterStatus from query parameters
+      const { search, filterStatus } = req.query;
+
+      // Initialize the where conditions object
+      let whereConditions = {
+        status: {
+          in: ["EN_ATTENTE", "EN_COURS_VALIDATION"],
+        },
+        validations: {
+          some: {
+            status: "EN_ATTENTE",
           },
-          // Au moins une validation en attente
+        },
+        NOT: {
           validations: {
             some: {
-              status: "EN_ATTENTE",
-            },
-          },
-          // Pas encore validé par ce manager
-          NOT: {
-            validations: {
-              some: {
-                validateurId: managerId,
-              },
+              validateurId: managerId,
             },
           },
         },
+      };
+
+      // Add search term to filter demandes by text search (if provided)
+      if (search) {
+        whereConditions.OR = [
+          {
+            user: {
+              firstName: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            user: {
+              lastName: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            user: {
+              username: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            user: {
+              email: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
+        ];
+      }
+
+      // Add filterStatus to filter by demande status (if provided)
+      if (filterStatus) {
+        whereConditions.status = filterStatus;
+      }
+
+      // Query the database with the constructed where conditions
+      const demandes = await prisma.demande.findMany({
+        where: whereConditions,
         include: {
           user: {
             select: {
@@ -504,11 +636,16 @@ router.get(
                 },
               },
             },
-            orderBy: { ordre: "asc" },
+            orderBy: {
+              ordre: "asc",
+            },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: {
+          createdAt: "desc",
+        },
       });
+
       res.json({
         success: true,
         demandes: demandes,
@@ -524,7 +661,11 @@ router.get(
   }
 );
 
-//valider demandes par manager
+
+
+
+
+
 router.post(
   "/valider/:demandeId",
   keycloak.protect(),
@@ -679,9 +820,6 @@ router.post(
   }
 );
 
-
-
-
 // // ADMIN ONLY: Mettre à jour les champs SPOC
 // router.patch('/spoc/:demandeId', keycloak.protect(), requireAdmin, async (req, res) => {
 //   try {
@@ -711,13 +849,11 @@ router.post(
 //   }
 // });
 
-
-
 // // Fonction utilitaire pour obtenir le statut détaillé d'une demande
 // router.get('/status/:demandeId', keycloak.protect(), requireUser, async (req, res) => {
 //   try {
 //     const { demandeId } = req.params;
-    
+
 //     const demande = await prisma.demande.findUnique({
 //       where: { id: demandeId },
 //       include: {
@@ -770,17 +906,4 @@ router.post(
 //   }
 // });
 
-
-
-
-
 module.exports = router;
-
-
-
-
-
-
-
-
-
