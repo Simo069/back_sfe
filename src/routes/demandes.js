@@ -5,6 +5,8 @@ const prisma = require("../config/database");
 
 const { keycloak } = require("../config/keycloak");
 
+// Imports nécessaires
+const fs = require('fs');
 const router = express.Router();
 
 const {
@@ -14,7 +16,94 @@ const {
   hasRole,
 } = require("../middleware/roleMiddlewar");
 
-// Configuration de multer pour les fichiers
+// // Configuration de multer pour les fichiers
+// const storage = multer.diskStorage({
+//   destination: function (req, file, cb) {
+//     cb(null, "uploads/");
+//   },
+//   filename: function (req, file, cb) {
+//     cb(null, Date.now() + "-" + file.originalname);
+//   },
+// });
+
+// const upload = multer({ storage: storage });
+
+
+
+
+// router.post(
+//   "/create",
+//   keycloak.protect(),
+//   requireUser,
+//   upload.single("attachment"),
+//   async (req, res) => {
+//     try {
+//       const userId = req.kauth.grant.access_token.content.sub;
+
+//       const user = await prisma.user.findUnique({
+//         where: { keycloakId: userId },
+//       });
+
+//       if (!user) {
+//         return res
+//           .status(404)
+//           .json({ success: false, message: "Utilisateur non trouve" });
+//       }
+
+//       const demandeData = {
+//         demandeur: req.body.demandeur,
+//         firstName: req.body.firstName,
+//         lastName: req.body.lastName,
+//         detailsUsage: req.body.Details_usage,
+//         dureeAcces: req.body.Duree_acces,
+//         businessOwner: req.body.bussiness_owner,
+//         dateDebut: new Date(req.body.date_debut),
+//         dateFin: new Date(req.body.date_fin),
+//         direction: req.body.direction,
+//         directionBu: req.body.directionBu,
+//         environnement: req.body.environnement,
+//         extraction: req.body.extraction,
+//         finaliteAccess: req.body.finalite_access,
+//         interneExterne: req.body.interneExterne,
+//         schema: req.body.schema,
+//         userId: user.id,
+//         attachmentName: req.file ? req.file.originalname : null,
+//         attachmentPath: req.file ? req.file.path : null,
+//       };
+//       // Créer la demande
+//       const demande = await prisma.demande.create({
+//         data: demandeData,
+//       });
+
+//       // Créer les 4 validations nécessaires
+//       const validations = [];
+//       for (let i = 1; i <= 4; i++) {
+//         validations.push({
+//           ordre: i,
+//           demandeId: demande.id,
+//         });
+//       }
+
+//       await prisma.validation.createMany({
+//         data: validations,
+//       });
+
+//       res.json({
+//         success: true,
+//         message: "Demande créée avec succès",
+//         demande: demande,
+//       });
+//     } catch (error) {
+//       console.error("Erreur création demande:", error);
+//       res.status(500).json({
+//         success: false,
+//         message: "Erreur lors de la création de la demande",
+//       });
+//     }
+//   }
+// );
+
+// Backend - Corrected version
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, "uploads/");
@@ -45,6 +134,16 @@ router.post(
           .json({ success: false, message: "Utilisateur non trouve" });
       }
 
+      // Parse schema if it's a string (coming from FormData)
+      let schema = req.body.schema;
+      if (typeof schema === 'string') {
+        try {
+          schema = JSON.parse(schema);
+        } catch (e) {
+          schema = [schema]; // If it's not valid JSON, treat as single value
+        }
+      }
+
       const demandeData = {
         demandeur: req.body.demandeur,
         firstName: req.body.firstName,
@@ -60,11 +159,12 @@ router.post(
         extraction: req.body.extraction,
         finaliteAccess: req.body.finalite_access,
         interneExterne: req.body.interneExterne,
-        schema: req.body.schema,
+        schema: schema, // Use the parsed schema
         userId: user.id,
         attachmentName: req.file ? req.file.originalname : null,
         attachmentPath: req.file ? req.file.path : null,
       };
+
       // Créer la demande
       const demande = await prisma.demande.create({
         data: demandeData,
@@ -93,10 +193,12 @@ router.post(
       res.status(500).json({
         success: false,
         message: "Erreur lors de la création de la demande",
+        error: error.message, // Add error details for debugging
       });
     }
   }
 );
+
 
 // router.get('/mes-demandes', keycloak.protect() , async (req, res)=>{
 //   try{
@@ -182,6 +284,10 @@ router.post(
 //     }
 //   }
 // );
+
+
+// Fonction de validation des données
+
 
 router.get(
   "/mes-demandes",
@@ -448,86 +554,6 @@ router.get(
 
 
 
-// router.get(
-//   "/a-valider",
-//   keycloak.protect(),
-//   requireManager,
-//   async (req, res) => {
-//     try {
-//       const managerId = req.kauth.grant.access_token.content.sub;
-//       const user = await prisma.user.findUnique({
-//         where: { keycloakId: managerId },
-//       });
-
-//       if (!user.roles.includes("manager")) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "vous n'avez pas les droits pour récupérer ces informations",
-//         });
-//       }
-
-//       // Requête avec exclusions basées sur le statut du manager
-//       const demandes = await prisma.demande.findMany({
-//         where: {
-//           status: {
-//             in: ["EN_ATTENTE", "EN_COURS_VALIDATION"],
-//           },
-//           validations: {
-//             some: {
-//               status: "EN_ATTENTE", // Il doit y avoir une validation en attente
-//             },
-//           },
-//           NOT: {
-//             validations: {
-//               some: {
-//                 validateurId: managerId, // Si le manager a déjà validé ou rejeté
-//               },
-//             },
-//           },
-//         },
-//         include: {
-//           user: {
-//             select: {
-//               firstName: true,
-//               lastName: true,
-//               email: true,
-//               username: true,
-//             },
-//           },
-//           validations: {
-//             include: {
-//               validateur: {
-//                 select: {
-//                   firstName: true,
-//                   lastName: true,
-//                   email: true,
-//                 },
-//               },
-//             },
-//             orderBy: { ordre: "asc" },
-//           },
-//         },
-//         orderBy: { createdAt: "desc" },
-//       });
-
-//       res.json({
-//         success: true,
-//         demandes: demandes,
-//         count: demandes.length,
-//       });
-//     } catch (error) {
-//       console.error("Erreur récupération demandes à valider:", error);
-//       res.status(500).json({
-//         success: false,
-//         message: "Erreur lors de la récupération des demandes",
-//       });
-//     }
-//   }
-// );
-
-
-
-//valider demandes par manager
 
 router.get(
   "/a-valider",
@@ -905,5 +931,221 @@ router.post(
 //     });
 //   }
 // });
+
+
+
+// Route to serve/download files
+router.get(
+  "/file/:demandeId",
+  keycloak.protect(),
+  requireUser,
+  async (req, res) => {
+    try {
+      const userId = req.kauth.grant.access_token.content.sub;
+      const demandeId = req.params.demandeId;
+
+      // Verify user has access to this demande
+      const user = await prisma.user.findUnique({
+        where: { keycloakId: userId },
+      });
+
+      if (!user) {
+        return res.status(404).json({ success: false, message: "Utilisateur non trouvé" });
+      }
+      console.log("test0");
+      // Get the demande with file info
+      const demande = await prisma.demande.findFirst({
+        where: {
+          id: demandeId ,
+          // userId: user.id, // Ensure user owns this demande
+        },
+      });
+console.log("test1");
+      if (!demande) {
+        return res.status(404).json({ success: false, message: "Demande non trouvée" });
+      }
+
+      if (!demande.attachmentPath) {
+        return res.status(404).json({ success: false, message: "Aucun fichier attaché" });
+      }
+
+      // Check if file exists
+      const filePath = path.resolve(demande.attachmentPath);
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ success: false, message: "Fichier non trouvé sur le serveur" });
+      }
+
+      // Get file info
+      const fileName = demande.attachmentName || path.basename(filePath);
+      const fileExtension = path.extname(fileName).toLowerCase();
+
+      // Set appropriate headers based on file type
+      const mimeTypes = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.txt': 'text/plain',
+      };
+
+      const mimeType = mimeTypes[fileExtension] || 'application/octet-stream';
+      
+      // Check if client wants to download or view
+      const download = req.query.download === 'true';
+      
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', 
+        download ? `attachment; filename="${fileName}"` : `inline; filename="${fileName}"`
+      );
+
+      // Stream the file
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+      
+    } catch (error) {
+      console.error("Erreur lors de la récupération du fichier:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la récupération du fichier",
+      });
+    }
+  }
+);
+
+// Route to get file info without downloading
+router.get(
+  "/file-info/:demandeId",
+  keycloak.protect(),
+  requireUser,
+  async (req, res) => {
+    try {
+      const userId = req.kauth.grant.access_token.content.sub;
+      const demandeId = parseInt(req.params.demandeId);
+
+      const user = await prisma.user.findUnique({
+        where: { keycloakId: userId },
+      });
+
+      if (!user) {
+        return res.status(404).json({ success: false, message: "Utilisateur non trouvé" });
+      }
+
+      const demande = await prisma.demande.findFirst({
+        where: {
+          id: demandeId,
+          userId: user.id,
+        },
+        select: {
+          id: true,
+          attachmentName: true,
+          attachmentPath: true,
+        },
+      });
+
+      if (!demande) {
+        return res.status(404).json({ success: false, message: "Demande non trouvée" });
+      }
+
+      if (!demande.attachmentPath) {
+        return res.json({ 
+          success: true, 
+          hasFile: false,
+          message: "Aucun fichier attaché" 
+        });
+      }
+
+      // Check if file exists and get file stats
+      const filePath = path.resolve(demande.attachmentPath);
+      if (!fs.existsSync(filePath)) {
+        return res.json({ 
+          success: true, 
+          hasFile: false,
+          message: "Fichier non trouvé sur le serveur" 
+        });
+      }
+
+      const stats = fs.statSync(filePath);
+      const fileExtension = path.extname(demande.attachmentName || '').toLowerCase();
+      
+      res.json({
+        success: true,
+        hasFile: true,
+        fileInfo: {
+          name: demande.attachmentName,
+          size: stats.size,
+          extension: fileExtension,
+          uploadDate: stats.birthtime,
+          canPreview: ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.txt'].includes(fileExtension),
+        },
+      });
+      
+    } catch (error) {
+      console.error("Erreur lors de la récupération des infos du fichier:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la récupération des informations du fichier",
+      });
+    }
+  }
+);
+
+// Route to get all demandes with file info for dashboard
+router.get(
+  "/list",
+  keycloak.protect(),
+  requireUser,
+  async (req, res) => {
+    try {
+      const userId = req.kauth.grant.access_token.content.sub;
+
+      const user = await prisma.user.findUnique({
+        where: { keycloakId: userId },
+      });
+
+      if (!user) {
+        return res.status(404).json({ success: false, message: "Utilisateur non trouvé" });
+      }
+
+      const demandes = await prisma.demande.findMany({
+        where: { userId: user.id },
+        include: {
+          validations: {
+            orderBy: { ordre: 'asc' }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Add file info to each demande
+      const demandesWithFileInfo = demandes.map(demande => ({
+        ...demande,
+        hasAttachment: !!demande.attachmentPath,
+        attachmentName: demande.attachmentName,
+      }));
+
+      res.json({
+        success: true,
+        demandes: demandesWithFileInfo,
+      });
+      
+    } catch (error) {
+      console.error("Erreur lors de la récupération des demandes:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la récupération des demandes",
+      });
+    }
+  }
+);
+
+
+
+
+
+
+
 
 module.exports = router;

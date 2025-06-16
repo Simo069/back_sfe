@@ -5,7 +5,7 @@ const { keycloak, memoryStore } = require('./config/keycloak');
 require('dotenv').config();
 const session = require('express-session');
 
-
+const path = require("path");
 
 
 // init app
@@ -52,6 +52,8 @@ app.use('/api/demandes', demandeRoutes);
 app.use('/api/departement' , departementRoutes);
 app.use('/api/users' , userRoutes);
 
+// Pour servir les fichiers statiques uploadés (attention à la sécurité !)
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Error handling middleware
 app.use((error, req, res, next) => {

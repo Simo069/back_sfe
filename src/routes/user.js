@@ -581,7 +581,7 @@ router.put(
         }
       );
 
-      res.json({
+      res.status(200).json({
         success: true,
         message: "Password changed successfully",
       });
@@ -664,6 +664,7 @@ router.post("/reset-password", async (req, res) => {
 router.put("/profile", keycloak.protect(), requireUser, async (req, res) => {
   try {
     const { firstName, lastName, email } = req.body;
+    console.log(firstName);
     const keycloakId = req.kauth.grant.access_token.content.sub;
     // Get current user from database
     const currentUser = await prisma.user.findUnique({
