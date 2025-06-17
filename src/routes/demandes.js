@@ -617,7 +617,6 @@ router.get(
   async (req, res) => {
     try {
       const managerId = req.kauth.grant.access_token.content.sub;
-
       // Check if the manager has the right roles
       const user = await prisma.user.findUnique({
         where: { keycloakId: managerId },
@@ -747,159 +746,159 @@ router.get(
 
 
 
-router.post(
-  "/valider/:demandeId",
-  keycloak.protect(),
-  requireManager,
-  async (req, res) => {
-    try {
-      const { demandeId } = req.params;
-      const { action, commentaire } = req.body;
-      const managerId = req.user.id;
+// router.post(
+//   "/valider/:demandeId",
+//   keycloak.protect(),
+//   requireManager,
+//   async (req, res) => {
+//     try {
+//       const { demandeId } = req.params;
+//       const { action, commentaire } = req.body;
+//       const managerId = req.user.id;
 
-      // Vérifier que l'action est valide
-      if (!["APPROUVEE", "REJETEE"].includes(action)) {
-        return res.status(400).json({
-          success: false,
-          message: "Action invalide. Utilisez APPROUVEE ou REJETEE",
-        });
-      }
+//       // Vérifier que l'action est valide
+//       if (!["APPROUVEE", "REJETEE"].includes(action)) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Action invalide. Utilisez APPROUVEE ou REJETEE",
+//         });
+//       }
 
-      // Récupérer la demande avec ses validations
-      const demande = await prisma.demande.findUnique({
-        where: { id: demandeId },
-        include: {
-          validations: {
-            orderBy: { ordre: "asc" },
-          },
-        },
-      });
+//       // Récupérer la demande avec ses validations
+//       const demande = await prisma.demande.findUnique({
+//         where: { id: demandeId },
+//         include: {
+//           validations: {
+//             orderBy: { ordre: "asc" },
+//           },
+//         },
+//       });
 
-      if (!demande) {
-        return res.status(404).json({
-          success: false,
-          message: "Demande non trouvée",
-        });
-      }
+//       if (!demande) {
+//         return res.status(404).json({
+//           success: false,
+//           message: "Demande non trouvée",
+//         });
+//       }
 
-      // Vérifier si ce manager a déjà validé cette demande
-      const validationExistante = demande.validations.find(
-        (v) => v.validateurId === managerId
-      );
+//       // Vérifier si ce manager a déjà validé cette demande
+//       const validationExistante = demande.validations.find(
+//         (v) => v.validateurId === managerId
+//       );
 
-      if (validationExistante) {
-        return res.status(400).json({
-          success: false,
-          message: "Vous avez déjà validé cette demande",
-        });
-      }
+//       if (validationExistante) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Vous avez déjà validé cette demande",
+//         });
+//       }
 
-      // Trouver une validation EN_ATTENTE disponible pour ce manager
-      const validationDisponible = demande.validations.find(
-        (v) => v.status === "EN_ATTENTE" && !v.validateurId
-      );
+//       // Trouver une validation EN_ATTENTE disponible pour ce manager
+//       const validationDisponible = demande.validations.find(
+//         (v) => v.status === "EN_ATTENTE" && !v.validateurId
+//       );
 
-      if (!validationDisponible) {
-        return res.status(400).json({
-          success: false,
-          message: "Aucune validation disponible pour cette demande",
-        });
-      }
+//       if (!validationDisponible) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Aucune validation disponible pour cette demande",
+//         });
+//       }
 
-      // Cas 1: REJET - Une seule rejection suffit pour rejeter toute la demande
-      if (action === "REJETEE") {
-        // Vérifier qu'un commentaire est fourni pour le rejet
-        if (!commentaire || commentaire.trim() === "") {
-          return res.status(400).json({
-            success: false,
-            message: "Un commentaire est obligatoire pour rejeter une demande",
-          });
-        }
+//       // Cas 1: REJET - Une seule rejection suffit pour rejeter toute la demande
+//       if (action === "REJETEE") {
+//         // Vérifier qu'un commentaire est fourni pour le rejet
+//         if (!commentaire || commentaire.trim() === "") {
+//           return res.status(400).json({
+//             success: false,
+//             message: "Un commentaire est obligatoire pour rejeter une demande",
+//           });
+//         }
 
-        // Mettre à jour la validation avec le rejet
-        await prisma.validation.update({
-          where: { id: validationDisponible.id },
-          data: {
-            status: "REJETEE",
-            commentaire: commentaire,
-            dateAction: new Date(),
-            validateurId: managerId,
-          },
-        });
+//         // Mettre à jour la validation avec le rejet
+//         await prisma.validation.update({
+//           where: { id: validationDisponible.id },
+//           data: {
+//             status: "REJETEE",
+//             commentaire: commentaire,
+//             dateAction: new Date(),
+//             validateurId: managerId,
+//           },
+//         });
 
-        // Rejeter immédiatement toute la demande
-        await prisma.demande.update({
-          where: { id: demandeId },
-          data: {
-            status: "REJETEE",
-            commentaireRejet: commentaire,
-          },
-        });
+//         // Rejeter immédiatement toute la demande
+//         await prisma.demande.update({
+//           where: { id: demandeId },
+//           data: {
+//             status: "REJETEE",
+//             commentaireRejet: commentaire,
+//           },
+//         });
 
-        return res.json({
-          success: true,
-          message: "Demande rejetée avec succès",
-          finalStatus: "REJETEE",
-        });
-      }
+//         return res.json({
+//           success: true,
+//           message: "Demande rejetée avec succès",
+//           finalStatus: "REJETEE",
+//         });
+//       }
 
-      // Cas 2: APPROBATION
-      if (action === "APPROUVEE") {
-        // Mettre à jour la validation avec l'approbation
-        await prisma.validation.update({
-          where: { id: validationDisponible.id },
-          data: {
-            status: "APPROUVEE",
-            commentaire: commentaire || null,
-            dateAction: new Date(),
-            validateurId: managerId,
-          },
-        });
+//       // Cas 2: APPROBATION
+//       if (action === "APPROUVEE") {
+//         // Mettre à jour la validation avec l'approbation
+//         await prisma.validation.update({
+//           where: { id: validationDisponible.id },
+//           data: {
+//             status: "APPROUVEE",
+//             commentaire: commentaire || null,
+//             dateAction: new Date(),
+//             validateurId: managerId,
+//           },
+//         });
 
-        // Vérifier si toutes les validations sont maintenant complètes
-        const validationsRestantes = await prisma.validation.count({
-          where: {
-            demandeId: demandeId,
-            status: "EN_ATTENTE",
-          },
-        });
+//         // Vérifier si toutes les validations sont maintenant complètes
+//         const validationsRestantes = await prisma.validation.count({
+//           where: {
+//             demandeId: demandeId,
+//             status: "EN_ATTENTE",
+//           },
+//         });
 
-        let finalStatus;
-        let message;
+//         let finalStatus;
+//         let message;
 
-        if (validationsRestantes === 0) {
-          // Toutes les validations sont faites, approuver définitivement la demande
-          await prisma.demande.update({
-            where: { id: demandeId },
-            data: { status: "APPROUVEE" },
-          });
+//         if (validationsRestantes === 0) {
+//           // Toutes les validations sont faites, approuver définitivement la demande
+//           await prisma.demande.update({
+//             where: { id: demandeId },
+//             data: { status: "APPROUVEE" },
+//           });
 
-          finalStatus = "APPROUVEE";
-          message =
-            "Demande approuvée définitivement ! Toutes les validations sont complètes.";
-        } else {
-          // Il reste des validations, garder le statut EN_ATTENTE
-          // Pas besoin de changer le statut car la demande reste en attente d'autres validations
-          finalStatus = "EN_ATTENTE";
-          message = `Validation approuvée avec succès. Il reste ${validationsRestantes} validation(s) à effectuer.`;
-        }
+//           finalStatus = "APPROUVEE";
+//           message =
+//             "Demande approuvée définitivement ! Toutes les validations sont complètes.";
+//         } else {
+//           // Il reste des validations, garder le statut EN_ATTENTE
+//           // Pas besoin de changer le statut car la demande reste en attente d'autres validations
+//           finalStatus = "EN_ATTENTE";
+//           message = `Validation approuvée avec succès. Il reste ${validationsRestantes} validation(s) à effectuer.`;
+//         }
 
-        return res.json({
-          success: true,
-          message: message,
-          finalStatus: finalStatus,
-          validationsRestantes: validationsRestantes,
-        });
-      }
-    } catch (error) {
-      console.error("Erreur lors de la validation:", error);
-      res.status(500).json({
-        success: false,
-        message: "Erreur lors de la validation de la demande",
-      });
-    }
-  }
-);
+//         return res.json({
+//           success: true,
+//           message: message,
+//           finalStatus: finalStatus,
+//           validationsRestantes: validationsRestantes,
+//         });
+//       }
+//     } catch (error) {
+//       console.error("Erreur lors de la validation:", error);
+//       res.status(500).json({
+//         success: false,
+//         message: "Erreur lors de la validation de la demande",
+//       });
+//     }
+//   }
+// );
 
 // // ADMIN ONLY: Mettre à jour les champs SPOC
 // router.patch('/spoc/:demandeId', keycloak.protect(), requireAdmin, async (req, res) => {
@@ -990,6 +989,192 @@ router.post(
 
 
 // Route to serve/download files
+
+
+router.post(
+  "/valider/:demandeId",
+  keycloak.protect(),
+  requireManager,
+  async (req, res) => {
+    try {
+      const { demandeId } = req.params;
+      const { action, commentaire, spocData } = req.body;
+      const managerId = req.user.id;
+
+      // Vérifier que l'action est valide
+      if (!["APPROUVEE", "REJETEE"].includes(action)) {
+        return res.status(400).json({
+          success: false,
+          message: "Action invalide. Utilisez APPROUVEE ou REJETEE",
+        });
+      }
+
+      // Récupérer la demande avec ses validations
+      const demande = await prisma.demande.findUnique({
+        where: { id: demandeId },
+        include: {
+          validations: {
+            orderBy: { ordre: "asc" },
+          },
+        },
+      });
+
+      if (!demande) {
+        return res.status(404).json({
+          success: false,
+          message: "Demande non trouvée",
+        });
+      }
+
+      // Vérifier si ce manager a déjà validé cette demande
+      const validationExistante = demande.validations.find(
+        (v) => v.validateurId === managerId
+      );
+
+      if (validationExistante) {
+        return res.status(400).json({
+          success: false,
+          message: "Vous avez déjà validé cette demande",
+        });
+      }
+
+      // Trouver une validation EN_ATTENTE disponible pour ce manager
+      const validationDisponible = demande.validations.find(
+        (v) => v.status === "EN_ATTENTE" && !v.validateurId
+      );
+
+      if (!validationDisponible) {
+        return res.status(400).json({
+          success: false,
+          message: "Aucune validation disponible pour cette demande",
+        });
+      }
+
+      // Cas 1: REJET - Une seule rejection suffit pour rejeter toute la demande
+      if (action === "REJETEE") {
+        // Vérifier qu'un commentaire est fourni pour le rejet
+        if (!commentaire || commentaire.trim() === "") {
+          return res.status(400).json({
+            success: false,
+            message: "Un commentaire est obligatoire pour rejeter une demande",
+          });
+        }
+
+        // Mettre à jour la validation avec le rejet
+        await prisma.validation.update({
+          where: { id: validationDisponible.id },
+          data: {
+            status: "REJETEE",
+            commentaire: commentaire,
+            dateAction: new Date(),
+            validateurId: managerId,
+          },
+        });
+
+        // Préparer les données à mettre à jour pour la demande
+        const updateData = {
+          status: "REJETEE",
+          commentaireRejet: commentaire,
+        };
+
+        // Ajouter spocData si fourni et non vide
+        if (spocData && spocData.trim() !== "") {
+          updateData.spocData = spocData.trim();
+        }
+
+        // Rejeter immédiatement toute la demande
+        await prisma.demande.update({
+          where: { id: demandeId },
+          data: updateData,
+        });
+
+        return res.json({
+          success: true,
+          message: "Demande rejetée avec succès",
+          finalStatus: "REJETEE",
+        });
+      }
+
+      // Cas 2: APPROBATION
+      if (action === "APPROUVEE") {
+        // Mettre à jour la validation avec l'approbation
+        await prisma.validation.update({
+          where: { id: validationDisponible.id },
+          data: {
+            status: "APPROUVEE",
+            commentaire: commentaire || null,
+            dateAction: new Date(),
+            validateurId: managerId,
+          },
+        });
+
+        // Vérifier si toutes les validations sont maintenant complètes
+        const validationsRestantes = await prisma.validation.count({
+          where: {
+            demandeId: demandeId,
+            status: "EN_ATTENTE",
+          },
+        });
+
+        let finalStatus;
+        let message;
+
+        if (validationsRestantes === 0) {
+          // Préparer les données à mettre à jour pour la demande
+          const updateData = {
+            status: "APPROUVEE",
+          };
+
+          // Ajouter spocData si fourni et non vide
+          if (spocData && spocData.trim() !== "") {
+            updateData.spocData = spocData.trim();
+          }
+
+          // Toutes les validations sont faites, approuver définitivement la demande
+          await prisma.demande.update({
+            where: { id: demandeId },
+            data: updateData,
+          });
+
+          finalStatus = "APPROUVEE";
+          message =
+            "Demande approuvée définitivement ! Toutes les validations sont complètes.";
+        } else {
+          // Il reste des validations, garder le statut EN_ATTENTE
+          // Mais on peut quand même mettre à jour spocData si fourni
+          if (spocData && spocData.trim() !== "") {
+            await prisma.demande.update({
+              where: { id: demandeId },
+              data: {
+                spocData: spocData.trim(),
+              },
+            });
+          }
+
+          finalStatus = "EN_ATTENTE";
+          message = `Validation approuvée avec succès. Il reste ${validationsRestantes} validation(s) à effectuer.`;
+        }
+
+        return res.json({
+          success: true,
+          message: message,
+          finalStatus: finalStatus,
+          validationsRestantes: validationsRestantes,
+        });
+      }
+    } catch (error) {
+      console.error("Erreur lors de la validation:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la validation de la demande",
+      });
+    }
+  }
+);
+
+
+
+
 router.get(
   "/file/:demandeId",
   keycloak.protect(),
