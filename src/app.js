@@ -17,6 +17,7 @@ const demandeRoutes = require('./routes/demandes');
 const userRoutes = require('./routes/user');
 const departementRoutes = require('./routes/departement');
 const {requireAdmin , requireManager , requireUser , hasRole} = require('./middleware/roleMiddlewar');
+const predictRoutes = require('./routes/predictRoutes');
 
 
 // Middleware
@@ -51,7 +52,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/demandes', demandeRoutes);
 app.use('/api/departement' , departementRoutes);
 app.use('/api/users' , userRoutes);
-
+app.use('/api', predictRoutes);
 // Pour servir les fichiers statiques uploadés (attention à la sécurité !)
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 

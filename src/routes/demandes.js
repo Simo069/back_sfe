@@ -450,6 +450,61 @@ router.get(
   }
 );
 
+
+
+router.get(
+  "/allDemandes",
+  keycloak.protect(),
+  requireAdmin,
+  async (req, res) => {
+    try {
+      
+
+      
+    
+
+      //get demandes with pagination
+      const demandes = await prisma.demande.findMany({
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              username: true,
+            },
+          },
+          validations: {
+            include: {
+              validateur: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            },
+            orderBy: { ordre: "asc" },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        
+      });
+      res.json({
+        success: true,
+        demandes: demandes,
+        
+      });
+    } catch (error) {
+      console.error("Erreur récupération toutes les demandes:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la récupération des demandes",
+      });
+    }
+  }
+);
+
 //Recuppere les demandes
 router.get(
   "/demande-a-valider",
