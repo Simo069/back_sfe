@@ -6,6 +6,7 @@ const {
   requireAdmin,
   requireManager,
   requireUser,
+  requireDashboardViewer,
   hasRole,
 } = require("../middleware/roleMiddlewar");
 const prisma = require("../config/database");
@@ -795,5 +796,176 @@ router.get("/profile", keycloak.protect(), requireUser, async (req, res) => {
     });
   }
 });
+
+
+
+
+// Ajouter un dashboard viewer (Admin seulement)
+router.post(
+  "/add-dashboard-viewer",
+  keycloak.protect(),
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { email, password, firstName, lastName } = req.body;
+      const username = email;
+
+      // Vérifications simples
+      if (!email || !password || !firstName || !lastName) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Tous les champs sont requis : email, password, firstName, lastName",
+        });
+      }
+
+      const adminToken = await getAdminToken();
+
+      // Vérifier si l'utilisateur existe déjà dans Keycloak
+      const checkResponse = await axios.get(
+        `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users?username=${username}`,
+        {
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (checkResponse.data && checkResponse.data.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Un utilisateur avec cet email existe déjà",
+        });
+      }
+
+      // Créer l'utilisateur dans Keycloak
+      const userPayload = {
+        username,
+        email,
+        firstName,
+        lastName,
+        enabled: true,
+        credentials: [
+          {
+            type: "password",
+            value: password,
+            temporary: false,
+          },
+        ],
+      };
+
+      const createUserResponse = await axios.post(
+        `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users`,
+        userPayload,
+        {
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const locationHeader = createUserResponse.headers.location;
+      const keycloakUserId = locationHeader.split("/").pop();
+
+      // Assigner le rôle dashboard-viewer dans Keycloak
+      await assignKeycloakRole(adminToken, keycloakUserId, "dashboard-viewer");
+
+      // Créer l'utilisateur dans la base de données
+      const user = await prisma.user.create({
+        data: {
+          keycloakId: keycloakUserId,
+          email,
+          firstName,
+          lastName,
+          username,
+          roles: ["dashboard-viewer"],
+        },
+      });
+
+      res.json({
+        success: true,
+        message: "Dashboard viewer créé avec succès",
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          username: user.username,
+          roles: user.roles,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Erreur création dashboard viewer:",
+        error.response?.data || error.message
+      );
+      res.status(400).json({
+        success: false,
+        message: "Erreur lors de la création du dashboard viewer",
+        error: error.response?.data?.errorMessage || error.message,
+      });
+    }
+  }
+);
+
+// Supprimer un dashboard viewer (Admin seulement)
+router.delete(
+  "/delete-dashboard-viewer/:id",
+  keycloak.protect(),
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Trouver l'utilisateur dans la base
+      const user = await prisma.user.findUnique({
+        where: { id },
+      });
+
+      if (!user || !user.roles.includes("dashboard-viewer")) {
+        return res.status(404).json({
+          success: false,
+          message: "Utilisateur dashboard viewer non trouvé",
+        });
+      }
+
+      // Supprimer dans Keycloak
+      const adminToken = await getAdminToken();
+      await axios.delete(
+        `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users/${user.keycloakId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Soft delete dans la base
+      await prisma.user.update({
+        where: { id },
+        data: { isActive: false },
+      });
+
+      res.json({
+        success: true,
+        message: "Dashboard viewer supprimé avec succès",
+      });
+    } catch (error) {
+      console.error(
+        "Erreur suppression dashboard viewer:",
+        error.response?.data || error.message
+      );
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la suppression du dashboard viewer",
+        error: error.response?.data?.errorMessage || error.message,
+      });
+    }
+  }
+);
+
 
 module.exports = router;

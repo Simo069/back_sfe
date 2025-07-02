@@ -202,7 +202,6 @@
 
 // module.exports = User;
 
-
 const prisma = require('../config/database');
 
 class User {
@@ -256,8 +255,13 @@ class User {
       return this.roles.includes('user');
     };
 
+    user.isDashboardViewer = function() {
+      return this.roles.includes('dashboard_viewer');
+    };
+
+    // Hiérarchie : on place dashboard_viewer entre user (1) et manager (2)
     user.hasRoleOrAbove = function(role) {
-      const hierarchy = { user: 1, manager: 2, admin: 3 };
+      const hierarchy = { user: 1, dashboard_viewer: 1.5, manager: 2, admin: 3 };
       const userMaxRole = Math.max(...this.roles.map(r => hierarchy[r] || 0));
       return userMaxRole >= hierarchy[role];
     };

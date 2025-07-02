@@ -13,6 +13,7 @@ const {
   requireAdmin,
   requireManager,
   requireUser,
+  requireDashboardViewer,
   hasRole,
 } = require("../middleware/roleMiddlewar");
 

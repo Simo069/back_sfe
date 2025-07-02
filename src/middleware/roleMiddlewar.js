@@ -120,6 +120,7 @@ const requireRole = (allowedRoles) => {
 const requireAdmin = requireRole(['admin']);
 const requireManager = requireRole(['admin', 'manager']);
 const requireUser = requireRole(['admin', 'manager', 'user']);
+const requireDashboardViewer = requireRole(['admin', 'dashboard_viewer']);
 
 // Helper function to check if user has specific role
 const hasRole = (user, role) => {
@@ -138,6 +139,7 @@ module.exports = {
   requireAdmin,
   requireManager,
   requireUser,
+  requireDashboardViewer,
   hasRole,
   hasRoleOrAbove
 };

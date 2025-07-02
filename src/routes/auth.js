@@ -486,6 +486,8 @@
 
 // module.exports = router;
 
+
+
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
@@ -498,14 +500,15 @@ const {
   requireAdmin,
   requireManager,
   requireUser,
+  requireDashboardViewer,
   hasRole,
 } = require("../middleware/roleMiddlewar");
+
 // Login route
 router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Get token from Keycloak (same as before)
     const tokenResponse = await axios.post(
       `${process.env.KEYCLOAK_SERVER_URL}/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/token`,
       new URLSearchParams({
@@ -527,10 +530,9 @@ router.post("/login", async (req, res) => {
 
     const keycloakRoles = decodedToken.realm_access?.roles || [];
     const appRoles = keycloakRoles.filter((role) =>
-      ["user", "manager", "admin"].includes(role)
+      ["user", "manager", "admin", "dashboard_viewer"].includes(role)
     );
 
-    // Prisma findOrCreate equivalent
     let user = await prisma.user.findUnique({
       where: { keycloakId: decodedToken.sub },
     });
@@ -586,7 +588,7 @@ router.post("/login", async (req, res) => {
 // Register route
 router.post("/register", async (req, res) => {
   try {
-    const {
+    let {
       email,
       password,
       firstName,
@@ -596,17 +598,23 @@ router.post("/register", async (req, res) => {
     } = req.body;
     const username = email;
 
-    const validRoles = ["user", "manager", "admin"];
+    const validRoles = ["user", "manager", "admin", "dashboard_viewer"];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
         message: "Invalid role specified",
       });
     }
-    // Si c'est un user normal, ignorer le departementId même s'il est fourni
-    if (role === "user" && departementId) {
+
+    // Gestion departement selon rôle
+    if (role === "user") {
       departementId = null; // Les users normaux n'appartiennent pas à un département
     }
+    // Par exemple, si dashboard_viewer ne doit pas avoir de département:
+    if (role === "dashboard_viewer") {
+      departementId = null;  // décommenter si pas de département pour ce rôle
+    }
+
     const adminToken = await getAdminToken();
 
     const userPayload = {
@@ -658,16 +666,19 @@ router.post("/register", async (req, res) => {
 
     await assignKeycloakRole(adminToken, keycloakUserId, role);
 
-    // Create user with Prisma
+    // Créer utilisateur dans la base avec ou sans département selon valeur
+    const userData = {
+      keycloakId: keycloakUserId,
+      email,
+      firstName,
+      lastName,
+      username,
+      roles: [role],
+    };
+    if (departementId) userData.departementId = departementId;
+
     const user = await prisma.user.create({
-      data: {
-        keycloakId: keycloakUserId,
-        email,
-        firstName,
-        lastName,
-        username,
-        roles: [role],
-      },
+      data: userData,
       include: {
         departement: true,
       },
@@ -728,7 +739,7 @@ router.get("/verify", keycloak.protect(), async (req, res) => {
   }
 });
 
-// Keep other functions the same (getAdminToken, assignKeycloakRole, logout)
+// Fonctions getAdminToken, assignKeycloakRole, logout restent inchangées
 async function getAdminToken() {
   try {
     const response = await axios.post(
@@ -794,6 +805,5 @@ router.post("/logout", keycloak.protect(), async (req, res) => {
     res.status(500).json({ success: false, message: "Logout failed" });
   }
 });
-
 
 module.exports = router;

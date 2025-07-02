@@ -16,7 +16,7 @@ const authRoutes = require('./routes/auth');
 const demandeRoutes = require('./routes/demandes');
 const userRoutes = require('./routes/user');
 const departementRoutes = require('./routes/departement');
-const {requireAdmin , requireManager , requireUser , hasRole} = require('./middleware/roleMiddlewar');
+const {requireAdmin , requireManager , requireUser , requireDashboardViewer, hasRole} = require('./middleware/roleMiddlewar');
 
 
 // Middleware
