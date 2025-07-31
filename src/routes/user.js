@@ -21,18 +21,18 @@ router.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const { email, password, firstName, lastName, departemetId } = req.body;
+      const { email, password, firstName, lastName, departemetId , orders } = req.body;
       const username = email;
 
       //Verifications
-      if (!email || !password || !firstName || !lastName || !departemetId) {
+      if (!email || !password || !firstName || !lastName || !departemetId || !orders) {
         return res.status(400).json({
           success: false,
           message:
-            "Tous les champs sont requis email, password, firstName, lastName, departement ",
+            "Tous les champs sont requis email, password, firstName, lastName, departement , orders ",
         });
       }
-
+      
       const departement = await prisma.departement.findUnique({
         where: { id: departemetId, isActive: true },
       });
@@ -236,6 +236,7 @@ router.get("/all-users", keycloak.protect(), requireAdmin, async (req, res) => {
   }
 });
 
+//Lister les managers avec leurs departements 
 router.get("/managers", keycloak.protect(), requireAdmin, async (req, res) => {
   try {
     const { departementId } = req.query;
@@ -343,6 +344,7 @@ router.put(
   }
 );
 
+//Supprimer une manager (mais vraiment rend le compte desactiver pas supprimer immediatement)
 router.delete(
   "/delete-user/:id",
   keycloak.protect(),
@@ -453,74 +455,6 @@ async function assignKeycloakRole(adminToken, userId, roleName) {
   }
 }
 
-// // Statistiques des utilisateurs (Admin seulement)
-// router.get('/users/stats', keycloak.protect(), requireAdmin, async (req, res) => {
-//   try {
-//     const [totalUsers, totalManagers, totalAdmins, totalDepartements] = await Promise.all([
-//       prisma.user.count({
-//         where: {
-//           roles: { has: 'user' },
-//           isActive: true
-//         }
-//       }),
-//       prisma.user.count({
-//         where: {
-//           roles: { has: 'manager' },
-//           isActive: true
-//         }
-//       }),
-//       prisma.user.count({
-//         where: {
-//           roles: { has: 'admin' },
-//           isActive: true
-//         }
-//       }),
-//       prisma.departement.count({
-//         where: { isActive: true }
-//       })
-//     ]);
-
-//     // Statistiques par département
-//     const departementStats = await prisma.departement.findMany({
-//       where: { isActive: true },
-//       include: {
-//         _count: {
-//           select: {
-//             managers: {
-//               where: {
-//                 roles: { has: 'manager' },
-//                 isActive: true
-//               }
-//             }
-//           }
-//         }
-//       }
-//     });
-
-//     res.json({
-//       success: true,
-//       stats: {
-//         totalUsers,
-//         totalManagers,
-//         totalAdmins,
-//         totalDepartements,
-//         totalActiveUsers: totalUsers + totalManagers + totalAdmins,
-//         departementsWithManagers: departementStats.map(dept => ({
-//           id: dept.id,
-//           nom: dept.nom,
-//           managersCount: dept._count.managers
-//         }))
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Erreur récupération statistiques:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Erreur lors de la récupération des statistiques'
-//     });
-//   }
-// });
 
 //Change Password Route
 router.put(
@@ -757,7 +691,7 @@ router.put("/profile", keycloak.protect(), requireUser, async (req, res) => {
   }
 });
 
-//Get profile Route
+//Get profile Route Information
 router.get("/profile", keycloak.protect(), requireUser, async (req, res) => {
   try {
     const keycloakId = req.kauth.grant.access_token.content.sub;

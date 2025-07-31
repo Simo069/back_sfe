@@ -12,11 +12,11 @@ with open(json_path, "r", encoding="utf-8") as f:
 # Charger dans un DataFrame
 df = pd.json_normalize(data)
 
-print("✅ Aperçu des données :")
+print("Aperçu des données :")
 print(df.head())
-print("\n📌 Colonnes disponibles :")
+print("\nColonnes disponibles :")
 print(list(df.columns))
-print("\n🧾 Informations générales :")
+print("\nInformations générales :")
 print(df.info())
 
 # Colonnes qu’on garde

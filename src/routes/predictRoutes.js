@@ -7,7 +7,7 @@ router.post('/predict', (req, res) => {
 
   const inputJson = JSON.stringify(demandeData);
 
-  const pyProcess = spawn('python', ['ai/predict_model.py', inputJson]); // adapte le chemin ici
+  const pyProcess = spawn('python', ['ai/predict_model.py', inputJson]); 
 
   let output = '';
   pyProcess.stdout.on('data', (data) => {

@@ -77,19 +77,6 @@ router.get(
   requireAdmin,
   async (req, res) => {
     try {
-      // const {search } = req.query ;
-
-      // whereClause = {
-      //   isActive: true,
-      //   AND : [
-      //     {
-      //       OR : [
-      //         {nom : {contains: search , mode : "insensitive"}},
-      //         {desc : {contains: search , mode : "insensitive"}},
-      //       ]
-      //     }
-      //   ]
-      // };
       const departementsRaw = await prisma.departement.findMany({
         where: { isActive: true },
         include: {
