@@ -19,6 +19,7 @@ const {
   requireManager,
   requireUser,
   hasRole,
+  requireDashboardViewer
 } = require("./middleware/roleMiddlewar");
 const predictRoutes = require("./routes/predictRoutes");
 

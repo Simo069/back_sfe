@@ -18,6 +18,7 @@ const {
   requireManager,
   requireUser,
   hasRole,
+  requireDashboardViewer,
 } = require("../middleware/roleMiddlewar");
 
 // Configuration de multer pour les fichiers
@@ -227,6 +228,7 @@ router.get(
   "/all-demandes",
   keycloak.protect(),
   requireAdmin,
+  requireDashboardViewer,
   async (req, res) => {
     try {
       const { status, page = 1, limit = 10, search } = req.query;
@@ -303,7 +305,7 @@ router.get(
 router.get(
   "/allDemandes",
   keycloak.protect(),
-  requireAdmin,
+  requireDashboardViewer,
   async (req, res) => {
     try {
 

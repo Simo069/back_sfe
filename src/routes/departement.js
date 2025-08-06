@@ -12,6 +12,8 @@ const {
   requireManager,
   requireUser,
   hasRole,
+  requireDashboardViewer,
+  
 } = require("../middleware/roleMiddlewar");
 
 // helper function
