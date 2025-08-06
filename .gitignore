@@ -1,7 +1,21 @@
-node_modules
-# Keep environment variables out of version control
-.env
-env/
+# Ignore node_modules directory
+node_modules/
 
-/src/generated/prisma
-/uploads
+# Ignore uploads directory
+uploads/
+
+# Ignore environment variables
+.env
+
+# Ignore IDE specific files
+.vscode/
+.idea/
+
+# Ignore OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
