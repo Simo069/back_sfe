@@ -89,7 +89,8 @@ router.post(
       
       
       // Définir vos 3 managers
-      const MANAGER_1_ID = "c047fcee-0242-40cb-af80-9f73761a7da4";
+      // const MANAGER_1_ID = "c047fcee-0242-40cb-af80-9f73761a7da4";
+      const MANAGER_1_ID = "";
       const MANAGER_2_ID = "79445600-ea12-4e56-85e9-16e4a5a2bb0d"; 
       const MANAGER_3_ID = "6123e99f-8d3c-4fdd-adac-da4c768b63b3";
       
@@ -469,7 +470,7 @@ router.get(
       });
       console.log("👤 User found:", user);
 
-      if (!user || !user.roles.includes("manager")) {
+      if (!user || (!user.roles.includes("manager") && !user.roles.includes("admin"))) {
         return res.status(403).json({
           success: false,
           message: "vous n'avez pas les droits pour récupérer ces informations",
