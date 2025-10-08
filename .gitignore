@@ -1,4 +1,4 @@
-# node_modules
+git
 # Keep environment variables out of version control
 .env
 env/
@@ -6,9 +6,9 @@ env/
 /src/generated/prisma
 # /uploads
 
+
 # Ignore node_modules directory
 node_modules/
-
 # Ignore uploads directory
 uploads/
 
