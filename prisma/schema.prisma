@@ -51,7 +51,7 @@ model Demande {
   extraction     String // "Oui" ou "Non"
   finaliteAccess String   @map("finalite_access")
   interneExterne String   @map("interne_externe") // "Interne" ou "Externe"
-  schema         String[] // Array de tables/schemas
+  schema         String
 
   // Fichier attaché
   attachmentName String? @map("attachment_name")

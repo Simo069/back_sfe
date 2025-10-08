@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "demandes" ALTER COLUMN "schema" SET NOT NULL,
+ALTER COLUMN "schema" SET DATA TYPE TEXT;

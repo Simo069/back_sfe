@@ -52,14 +52,14 @@ router.post(
       }
       
       // Parse schema if it's a string 
-      let schema = req.body.schema;
-      if (typeof schema === 'string') {
-        try {
-          schema = JSON.parse(schema);
-        } catch (e) {
-          schema = [schema];
-        }
-      }
+      // let schema = req.body.schema;
+      // if (typeof schema === 'string') {
+      //   try {
+      //     schema = JSON.parse(schema);
+      //   } catch (e) {
+      //     schema = [schema];
+      //   }
+      // }
       
       const demandeData = {
         demandeur: req.body.demandeur,
@@ -67,20 +67,19 @@ router.post(
         lastName: req.body.lastName,
         detailsUsage: req.body.Details_usage,
         dureeAcces: req.body.Duree_acces,
-        businessOwner: req.body.bussiness_owner,
+        businessOwner: req.body.bussiness_owner ||  "",
         dateDebut: new Date(req.body.date_debut),
         dateFin: new Date(req.body.date_fin),
         direction: req.body.direction,
-        directionBu: req.body.directionBu,
+        directionBu: req.body.directionBu || "",
         environnement: req.body.environnement,
         extraction: req.body.extraction,
         finaliteAccess: req.body.finalite_access,
         interneExterne: req.body.interneExterne,
-        schema: schema,
+        schema:req.body.schema,
         userId: user.id,
         attachmentName: req.file ? req.file.originalname : null,
         attachmentPath: req.file ? req.file.path : null,
-        // status: 'EN_COURS_VALIDATION' // ← CHANGEMENT ICI
       };
       
       // Créer la demande
