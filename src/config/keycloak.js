@@ -7,12 +7,12 @@ const memoryStore = new session.MemoryStore();
 
 const keycloakConfig = {
   realm: 'realmsfe',
-  'auth-server-url': 'http://localhost:4000/',
+  'auth-server-url': 'http://localhost:8080/',
   'ssl-required': 'external',
   resource: 'sfeclient',
   'public-client': false,
   credentials: {
-    secret: process.env.KEYCLOAK_CLIENT_SECRET, // Get this from Keycloak admin console
+    secret: process.env.KEYCLOAK_CLIENT_SECRET, 
   },
   'use-resource-role-mappings': true,
   'confidential-port': 0

@@ -6,8 +6,9 @@ const {
   requireAdmin,
   requireManager,
   requireUser,
-  requireDashboardViewer,
   hasRole,
+  requireDashboardViewer,
+  requireProfileAccess,
 } = require("../middleware/roleMiddlewar");
 const prisma = require("../config/database");
 const { use } = require("./demandes");
@@ -22,15 +23,23 @@ router.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const { email, password, firstName, lastName, departemetId } = req.body;
+      const { email, password, firstName, lastName, departemetId, orders } =
+        req.body;
       const username = email;
 
       //Verifications
-      if (!email || !password || !firstName || !lastName || !departemetId) {
+      if (
+        !email ||
+        !password ||
+        !firstName ||
+        !lastName ||
+        !departemetId ||
+        !orders
+      ) {
         return res.status(400).json({
           success: false,
           message:
-            "Tous les champs sont requis email, password, firstName, lastName, departement ",
+            "Tous les champs sont requis email, password, firstName, lastName, departement , orders ",
         });
       }
 
@@ -237,6 +246,7 @@ router.get("/all-users", keycloak.protect(), requireAdmin, async (req, res) => {
   }
 });
 
+//Lister les managers avec leurs departements
 router.get("/managers", keycloak.protect(), requireAdmin, async (req, res) => {
   try {
     const { departementId } = req.query;
@@ -244,7 +254,7 @@ router.get("/managers", keycloak.protect(), requireAdmin, async (req, res) => {
       where: {
         roles: { has: "manager" },
         isActive: true,
-        ...(departementId && { departementId }), 
+        ...(departementId && { departementId }),
       },
       include: {
         departement: true,
@@ -344,6 +354,7 @@ router.put(
   }
 );
 
+//Supprimer une manager (mais vraiment rend le compte desactiver pas supprimer immediatement)
 router.delete(
   "/delete-user/:id",
   keycloak.protect(),
@@ -453,75 +464,6 @@ async function assignKeycloakRole(adminToken, userId, roleName) {
     throw error;
   }
 }
-
-// // Statistiques des utilisateurs (Admin seulement)
-// router.get('/users/stats', keycloak.protect(), requireAdmin, async (req, res) => {
-//   try {
-//     const [totalUsers, totalManagers, totalAdmins, totalDepartements] = await Promise.all([
-//       prisma.user.count({
-//         where: {
-//           roles: { has: 'user' },
-//           isActive: true
-//         }
-//       }),
-//       prisma.user.count({
-//         where: {
-//           roles: { has: 'manager' },
-//           isActive: true
-//         }
-//       }),
-//       prisma.user.count({
-//         where: {
-//           roles: { has: 'admin' },
-//           isActive: true
-//         }
-//       }),
-//       prisma.departement.count({
-//         where: { isActive: true }
-//       })
-//     ]);
-
-//     // Statistiques par département
-//     const departementStats = await prisma.departement.findMany({
-//       where: { isActive: true },
-//       include: {
-//         _count: {
-//           select: {
-//             managers: {
-//               where: {
-//                 roles: { has: 'manager' },
-//                 isActive: true
-//               }
-//             }
-//           }
-//         }
-//       }
-//     });
-
-//     res.json({
-//       success: true,
-//       stats: {
-//         totalUsers,
-//         totalManagers,
-//         totalAdmins,
-//         totalDepartements,
-//         totalActiveUsers: totalUsers + totalManagers + totalAdmins,
-//         departementsWithManagers: departementStats.map(dept => ({
-//           id: dept.id,
-//           nom: dept.nom,
-//           managersCount: dept._count.managers
-//         }))
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Erreur récupération statistiques:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Erreur lors de la récupération des statistiques'
-//     });
-//   }
-// });
 
 //Change Password Route
 router.put(
@@ -662,54 +604,244 @@ router.post("/reset-password", async (req, res) => {
 });
 
 // Update Profile Route
-router.put("/profile", keycloak.protect(), requireUser, async (req, res) => {
-  try {
-    const { firstName, lastName, email } = req.body;
-    console.log(firstName);
-    const keycloakId = req.kauth.grant.access_token.content.sub;
-    // Get current user from database
-    const currentUser = await prisma.user.findUnique({
-      where: { keycloakId },
-    });
-
-    if (!currentUser) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
+router.put(
+  "/profile",
+  keycloak.protect(),
+  requireProfileAccess,
+  async (req, res) => {
+    try {
+      const { firstName, lastName, email } = req.body;
+      console.log(firstName);
+      const keycloakId = req.kauth.grant.access_token.content.sub;
+      // Get current user from database
+      const currentUser = await prisma.user.findUnique({
+        where: { keycloakId },
       });
-    }
-    // Prepare updates for Keycloak
-    const keycloakUpdates = {};
-    if (firstName) keycloakUpdates.firstName = firstName;
-    if (lastName) keycloakUpdates.lastName = lastName;
-    if (email && email !== currentUser.email) {
-      // Check if email already exists
-      const adminToken = await getAdminToken();
-      const emailCheckResponse = await axios.get(
-        `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users?email=${email}`,
-        {
-          headers: {
-            Authorization: `Bearer ${adminToken}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
 
-      if (emailCheckResponse.data && emailCheckResponse.data.length > 0) {
-        return res.status(400).json({
+      if (!currentUser) {
+        return res.status(404).json({
           success: false,
-          message: "Email already exists",
+          message: "User not found",
         });
       }
-      keycloakUpdates.email = email;
-      keycloakUpdates.username = email;
+      // Prepare updates for Keycloak
+      const keycloakUpdates = {};
+      if (firstName) keycloakUpdates.firstName = firstName;
+      if (lastName) keycloakUpdates.lastName = lastName;
+      if (email && email !== currentUser.email) {
+        // Check if email already exists
+        const adminToken = await getAdminToken();
+        const emailCheckResponse = await axios.get(
+          `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users?email=${email}`,
+          {
+            headers: {
+              Authorization: `Bearer ${adminToken}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (emailCheckResponse.data && emailCheckResponse.data.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Email already exists",
+          });
+        }
+        keycloakUpdates.email = email;
+        keycloakUpdates.username = email;
+      }
+      // Update in Keycloak if there are changes
+      if (Object.keys(keycloakUpdates).length > 0) {
+        const adminToken = await getAdminToken();
+        await axios.put(
+          `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users/${keycloakId}`,
+          keycloakUpdates,
+          {
+            headers: {
+              Authorization: `Bearer ${adminToken}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+      }
+
+      // Prepare updates for local database
+      const dbUpdates = {};
+      if (firstName) dbUpdates.firstName = firstName;
+      if (lastName) dbUpdates.lastName = lastName;
+      if (email) {
+        dbUpdates.email = email;
+        dbUpdates.username = email;
+      }
+
+      // Update in local database
+      const updatedUser = await prisma.user.update({
+        where: { keycloakId },
+        data: dbUpdates,
+      });
+
+      res.json({
+        success: true,
+        message: "Profile updated successfully",
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          username: updatedUser.username,
+          roles: updatedUser.roles,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Update profile error:",
+        error.response?.data || error.message
+      );
+      res.status(500).json({
+        success: false,
+        message: "Failed to update profile",
+      });
     }
-    // Update in Keycloak if there are changes
-    if (Object.keys(keycloakUpdates).length > 0) {
+  }
+);
+
+//Get profile Route Information
+router.get(
+  "/profile",
+  keycloak.protect(),
+  requireProfileAccess,
+  async (req, res) => {
+    try {
+      const keycloakId = req.kauth.grant.access_token.content.sub;
+      const user = await prisma.user.findUnique({
+        where: { keycloakId },
+        include: { departement: true },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          username: user.username,
+          roles: user.roles,
+          departement: user.departement,
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin,
+        },
+      });
+    } catch (error) {
+      console.error("Get profile error:", error.message);
+      res.status(500).json({
+        success: false,
+        message: "Failed to get profile",
+      });
+    }
+  }
+);
+
+//get user of dashboard-viewrs
+router.get(
+  "/get-dashboard-viewrs",
+  keycloak.protect(),
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { page = 1, limit = 10, search = "" } = req.query;
+      const pageNumber = parseInt(page, 10);
+      const pageSize = parseInt(limit, 10);
+      const offset = (pageNumber - 1) * pageSize;
+
+      let whereClause = {
+        isActive: true,
+        AND: [
+          {
+            OR: [
+              { firstName: { contains: search, mode: "insensitive" } },
+              { lastName: { contains: search, mode: "insensitive" } },
+            ],
+          },
+          {
+            NOT : {
+              roles : {
+                hasSome : ["admin" , "manager" , "user"],
+              }
+            }
+          }
+        ],
+      };
+
+
+      const [users,total] =await Promise.all([
+        prisma.user.findMany({
+          where: whereClause,
+          skip: offset, 
+          take:pageSize,
+          orderBy : [{firstName:"asc" } , {lastName:"asc"}],
+        }),
+        prisma.user.count({where:whereClause}),
+      ]);
+      const totalPages = Math.ceil(total /pageSize);
+      const usersData = users.map((user)=>({
+        id: user.id , 
+        email: user.email,
+        firstName : user.firstName ,
+        lastName :user.lastName,
+        roles : user.roles,
+        lastLogin: user.lastLogin ? formatDate(user.lastLogin) : null,
+        createdAt: formatDate(user.createdAt),
+      }));
+
+      res.json({
+        success: true ,
+        users : usersData,
+        total , totalPages , 
+        page : pageNumber,
+        limit : pageSize
+      });
+    } catch (error) {
+      console.error("Erreur récupération des utilisateurs de dashboard viewers:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la récupération des utilisateurs dashboard viewers",
+      });
+    }
+  }
+);
+
+// Ajouter un dashboard viewer (Admin seulement)
+router.post(
+  "/add-dashboard-viewer",
+  keycloak.protect(),
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { email, password, firstName, lastName } = req.body;
+      const username = email;
+
+      // Vérifications simples
+      if (!email || !password || !firstName || !lastName) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Tous les champs sont requis : email, password, firstName, lastName",
+        });
+      }
+
       const adminToken = await getAdminToken();
-      await axios.put(
-        `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users/${keycloakId}`,
-        keycloakUpdates,
+
+      // Vérifier si l'utilisateur existe déjà dans Keycloak
+      const checkResponse = await axios.get(
+        `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users?username=${username}`,
         {
           headers: {
             Authorization: `Bearer ${adminToken}`,
@@ -717,85 +849,141 @@ router.put("/profile", keycloak.protect(), requireUser, async (req, res) => {
           },
         }
       );
-    }
 
-    // Prepare updates for local database
-    const dbUpdates = {};
-    if (firstName) dbUpdates.firstName = firstName;
-    if (lastName) dbUpdates.lastName = lastName;
-    if (email) {
-      dbUpdates.email = email;
-      dbUpdates.username = email;
-    }
+      if (checkResponse.data && checkResponse.data.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Un utilisateur avec cet email existe déjà",
+        });
+      }
 
-    // Update in local database
-    const updatedUser = await prisma.user.update({
-      where: { keycloakId },
-      data: dbUpdates,
-    });
+      // Créer l'utilisateur dans Keycloak
+      const userPayload = {
+        username,
+        email,
+        firstName,
+        lastName,
+        enabled: true,
+        credentials: [
+          {
+            type: "password",
+            value: password,
+            temporary: false,
+          },
+        ],
+      };
 
-    res.json({
-      success: true,
-      message: "Profile updated successfully",
-      user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName,
-        username: updatedUser.username,
-        roles: updatedUser.roles,
-      },
-    });
-  } catch (error) {
-    console.error(
-      "Update profile error:",
-      error.response?.data || error.message
-    );
-    res.status(500).json({
-      success: false,
-      message: "Failed to update profile",
-    });
-  }
-});
+      const createUserResponse = await axios.post(
+        `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users`,
+        userPayload,
+        {
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
-//Get profile Route
-router.get("/profile", keycloak.protect(), requireUser, async (req, res) => {
-  try {
-    const keycloakId = req.kauth.grant.access_token.content.sub;
-    const user = await prisma.user.findUnique({
-      where: { keycloakId },
-      include: { departement: true },
-    });
+      const locationHeader = createUserResponse.headers.location;
+      const keycloakUserId = locationHeader.split("/").pop();
 
-    if (!user) {
-      return res.status(404).json({
+      // Assigner le rôle dashboard-viewer dans Keycloak
+      await assignKeycloakRole(adminToken, keycloakUserId, "dashboard-viewer");
+
+      // Créer l'utilisateur dans la base de données
+      const user = await prisma.user.create({
+        data: {
+          keycloakId: keycloakUserId,
+          email,
+          firstName,
+          lastName,
+          username,
+          roles: ["dashboard-viewer"],
+        },
+      });
+
+      res.json({
+        success: true,
+        message: "Dashboard viewer créé avec succès",
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          username: user.username,
+          roles: user.roles,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Erreur création dashboard viewer:",
+        error.response?.data || error.message
+      );
+      res.status(400).json({
         success: false,
-        message: "User not found",
+        message: "Erreur lors de la création du dashboard viewer",
+        error: error.response?.data?.errorMessage || error.message,
       });
     }
-
-    res.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        username: user.username,
-        roles: user.roles,
-        departement: user.departement,
-        createdAt: user.createdAt,
-        lastLogin: user.lastLogin,
-      },
-    });
-  } catch (error) {
-    console.error("Get profile error:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Failed to get profile",
-    });
   }
-});
+);
+
+// Supprimer un dashboard viewer (Admin seulement)
+router.delete(
+  "/delete-dashboard-viewer/:id",
+  keycloak.protect(),
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Trouver l'utilisateur dans la base
+      const user = await prisma.user.findUnique({
+        where: { id },
+      });
+
+      if (!user || !user.roles.includes("dashboard-viewer")) {
+        return res.status(404).json({
+          success: false,
+          message: "Utilisateur dashboard viewer non trouvé",
+        });
+      }
+
+      // Supprimer dans Keycloak
+      const adminToken = await getAdminToken();
+      await axios.delete(
+        `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users/${user.keycloakId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Soft delete dans la base
+      await prisma.user.update({
+        where: { id },
+        data: { isActive: false },
+      });
+
+      res.json({
+        success: true,
+        message: "Dashboard viewer supprimé avec succès",
+      });
+    } catch (error) {
+      console.error(
+        "Erreur suppression dashboard viewer:",
+        error.response?.data || error.message
+      );
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la suppression du dashboard viewer",
+        error: error.response?.data?.errorMessage || error.message,
+      });
+    }
+  }
+);
 
 
 

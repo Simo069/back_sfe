@@ -3,108 +3,25 @@ const multer = require("multer");
 const path = require("path");
 const prisma = require("../config/database");
 
+const { envoyerEmailApprobation, envoyerEmailRejet, testerConfigurationEmail }= require("../../services/emailService.js");
+
 const { keycloak } = require("../config/keycloak");
 
 // Imports nécessaires
 const fs = require('fs');
 const router = express.Router();
 
+
+
 const {
   requireAdmin,
   requireManager,
   requireUser,
-  requireDashboardViewer,
   hasRole,
+  requireDashboardViewer,
 } = require("../middleware/roleMiddlewar");
 
-// // Configuration de multer pour les fichiers
-// const storage = multer.diskStorage({
-//   destination: function (req, file, cb) {
-//     cb(null, "uploads/");
-//   },
-//   filename: function (req, file, cb) {
-//     cb(null, Date.now() + "-" + file.originalname);
-//   },
-// });
-
-// const upload = multer({ storage: storage });
-
-
-
-
-// router.post(
-//   "/create",
-//   keycloak.protect(),
-//   requireUser,
-//   upload.single("attachment"),
-//   async (req, res) => {
-//     try {
-//       const userId = req.kauth.grant.access_token.content.sub;
-
-//       const user = await prisma.user.findUnique({
-//         where: { keycloakId: userId },
-//       });
-
-//       if (!user) {
-//         return res
-//           .status(404)
-//           .json({ success: false, message: "Utilisateur non trouve" });
-//       }
-
-//       const demandeData = {
-//         demandeur: req.body.demandeur,
-//         firstName: req.body.firstName,
-//         lastName: req.body.lastName,
-//         detailsUsage: req.body.Details_usage,
-//         dureeAcces: req.body.Duree_acces,
-//         businessOwner: req.body.bussiness_owner,
-//         dateDebut: new Date(req.body.date_debut),
-//         dateFin: new Date(req.body.date_fin),
-//         direction: req.body.direction,
-//         directionBu: req.body.directionBu,
-//         environnement: req.body.environnement,
-//         extraction: req.body.extraction,
-//         finaliteAccess: req.body.finalite_access,
-//         interneExterne: req.body.interneExterne,
-//         schema: req.body.schema,
-//         userId: user.id,
-//         attachmentName: req.file ? req.file.originalname : null,
-//         attachmentPath: req.file ? req.file.path : null,
-//       };
-//       // Créer la demande
-//       const demande = await prisma.demande.create({
-//         data: demandeData,
-//       });
-
-//       // Créer les 4 validations nécessaires
-//       const validations = [];
-//       for (let i = 1; i <= 4; i++) {
-//         validations.push({
-//           ordre: i,
-//           demandeId: demande.id,
-//         });
-//       }
-
-//       await prisma.validation.createMany({
-//         data: validations,
-//       });
-
-//       res.json({
-//         success: true,
-//         message: "Demande créée avec succès",
-//         demande: demande,
-//       });
-//     } catch (error) {
-//       console.error("Erreur création demande:", error);
-//       res.status(500).json({
-//         success: false,
-//         message: "Erreur lors de la création de la demande",
-//       });
-//     }
-//   }
-// );
-
-// Backend - Corrected version
+// Configuration de multer pour les fichiers
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, "uploads/");
@@ -116,6 +33,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+
+// create demande  
 router.post(
   "/create",
   keycloak.protect(),
@@ -124,27 +43,24 @@ router.post(
   async (req, res) => {
     try {
       const userId = req.kauth.grant.access_token.content.sub;
-
       const user = await prisma.user.findUnique({
         where: { keycloakId: userId },
       });
-
+      
       if (!user) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Utilisateur non trouve" });
+        return res.status(404).json({ success: false, message: "Utilisateur non trouve" });
       }
-
-      // Parse schema if it's a string (coming from FormData)
+      
+      // Parse schema if it's a string 
       let schema = req.body.schema;
       if (typeof schema === 'string') {
         try {
           schema = JSON.parse(schema);
         } catch (e) {
-          schema = [schema]; // If it's not valid JSON, treat as single value
+          schema = [schema];
         }
       }
-
+      
       const demandeData = {
         demandeur: req.body.demandeur,
         firstName: req.body.firstName,
@@ -160,136 +76,70 @@ router.post(
         extraction: req.body.extraction,
         finaliteAccess: req.body.finalite_access,
         interneExterne: req.body.interneExterne,
-        schema: schema, // Use the parsed schema
+        schema: schema,
         userId: user.id,
         attachmentName: req.file ? req.file.originalname : null,
         attachmentPath: req.file ? req.file.path : null,
+        // status: 'EN_COURS_VALIDATION' // ← CHANGEMENT ICI
       };
-
+      
       // Créer la demande
       const demande = await prisma.demande.create({
         data: demandeData,
       });
-
-      // Créer les 4 validations nécessaires
-      const validations = [];
-      for (let i = 1; i <= 4; i++) {
-        validations.push({
-          ordre: i,
+      
+      
+      // Définir vos 3 managers
+      const MANAGER_1_ID = "c047fcee-0242-40cb-af80-9f73761a7da4";
+      const MANAGER_2_ID = "79445600-ea12-4e56-85e9-16e4a5a2bb0d"; 
+      const MANAGER_3_ID = "6123e99f-8d3c-4fdd-adac-da4c768b63b3";
+      
+      // Créer les 4 validations AVEC les managers assignés
+      const validations = [
+        {
+          ordre: 1,
           demandeId: demande.id,
-        });
-      }
-
+          validateurId: MANAGER_1_ID 
+        },
+        {
+          ordre: 2,
+          demandeId: demande.id,
+          validateurId: MANAGER_2_ID 
+        },
+        {
+          ordre: 3,
+          demandeId: demande.id,
+          validateurId: MANAGER_3_ID 
+        },
+        {
+          ordre: 4,
+          demandeId: demande.id,
+          validateurId: MANAGER_1_ID 
+        }
+      ];
+      
       await prisma.validation.createMany({
         data: validations,
       });
-
+      
+      
       res.json({
         success: true,
-        message: "Demande créée avec succès",
+        message: "Demande créée avec validation hiérarchique",
         demande: demande,
       });
+      
     } catch (error) {
       console.error("Erreur création demande:", error);
       res.status(500).json({
         success: false,
         message: "Erreur lors de la création de la demande",
-        error: error.message, // Add error details for debugging
+        error: error.message,
       });
     }
   }
 );
-
-
-// router.get('/mes-demandes', keycloak.protect() , async (req, res)=>{
-//   try{
-//     const userId = req.kauth.grant.access_token.content.sub;
-//     const user = await prisma.user.findUnique({
-//       where : {keycloakId: userId}
-//     });
-
-//     const demandes = await prisma.demande.findMany({
-//       where : {userId: userId},
-//       include : {
-//         validations : {
-//           include: {
-//             validateur : {
-//               select : {
-//                 firstName: true ,
-//                 lastName:true ,
-//                 email:true
-//               }
-//             }
-//           },
-//           orderBy : {ordre:'asc'}
-//         }
-//       },
-//       orderBy : {createdAt : 'desc'}
-//     });
-
-//     res.json({
-//       success:true,
-//       demandes : demandes
-//     });
-//   }catch(error){
-//     console.error('Erreur récupération demandes:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Erreur lors de la récupération des demandes'
-//     });
-//   }
-// });
-
-// Récupérer toutes les demandes d'un utilisateur
-// router.get(
-//   "/mes-demandes",
-//   keycloak.protect(),
-//   requireUser,
-//   async (req, res) => {
-//     try {
-//       const userId = req.kauth.grant.access_token.content.sub;
-
-//       const user = await prisma.user.findUnique({
-//         where: { keycloakId: userId },
-//       });
-
-//       const demandes = await prisma.demande.findMany({
-//         where: { userId: user.id },
-//         include: {
-//           validations: {
-//             include: {
-//               validateur: {
-//                 select: {
-//                   firstName: true,
-//                   lastName: true,
-//                   email: true,
-//                 },
-//               },
-//             },
-//             orderBy: { ordre: "asc" },
-//           },
-//         },
-//         orderBy: { createdAt: "desc" },
-//       });
-
-//       res.json({
-//         success: true,
-//         demandes: demandes,
-//       });
-//     } catch (error) {
-//       console.error("Erreur récupération demandes:", error);
-//       res.status(500).json({
-//         success: false,
-//         message: "Erreur lors de la récupération des demandes",
-//       });
-//     }
-//   }
-// );
-
-
-// Fonction de validation des données
-
-
+// get the demandes for user with ID with pagination
 router.get(
   "/mes-demandes",
   keycloak.protect(),
@@ -373,11 +223,12 @@ router.get(
     }
   }
 );
-
+//all demande for admin but with pagination
 router.get(
   "/all-demandes",
   keycloak.protect(),
   requireAdmin,
+  requireDashboardViewer,
   async (req, res) => {
     try {
       const { status, page = 1, limit = 10, search } = req.query;
@@ -450,8 +301,57 @@ router.get(
     }
   }
 );
+// all demande for dashboard admin
+router.get(
+  "/allDemandes",
+  keycloak.protect(),
+  requireDashboardViewer,
+  async (req, res) => {
+    try {
 
-//Recuppere les demandes
+      //get demandes with pagination
+      const demandes = await prisma.demande.findMany({
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              username: true,
+            },
+          },
+          validations: {
+            include: {
+              validateur: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            },
+            orderBy: { ordre: "asc" },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        
+      });
+      res.json({
+        success: true,
+        demandes: demandes,
+        
+      });
+    } catch (error) {
+      console.error("Erreur récupération toutes les demandes:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erreur lors de la récupération des demandes",
+      });
+    }
+  }
+);
+
+//Recuppere les demandes a valider pour une manager
 router.get(
   "/demande-a-valider",
   keycloak.protect(),
@@ -554,8 +454,7 @@ router.get(
 );
 
 
-
-
+//Recuppere les demandes a valider pour une manager (actuellement)
 router.get(
   "/a-valider",
   keycloak.protect(),
@@ -563,11 +462,13 @@ router.get(
   async (req, res) => {
     try {
       const managerId = req.kauth.grant.access_token.content.sub;
-
+      console.log("🔍 Manager ID from token:", managerId);
+      
       // Check if the manager has the right roles
       const user = await prisma.user.findUnique({
         where: { keycloakId: managerId },
       });
+      console.log("👤 User found:", user);
 
       if (!user || !user.roles.includes("manager")) {
         return res.status(403).json({
@@ -579,363 +480,320 @@ router.get(
       // Extract search and filterStatus from query parameters
       const { search, filterStatus } = req.query;
 
-      // Initialize the where conditions object
-      let whereConditions = {
-        status: {
-          in: ["EN_ATTENTE", "EN_COURS_VALIDATION"],
+      // NOUVELLE LOGIQUE : Trouver les demandes où c'est le tour de ce manager
+      
+      // 1. Récupérer toutes les validations EN_ATTENTE pour ce manager
+      let validationsEnAttente = await prisma.validation.findMany({
+        where: {
+          validateurId: user.id,
+          status: "EN_ATTENTE"
         },
-        validations: {
-          some: {
-            status: "EN_ATTENTE",
-          },
-        },
-        NOT: {
-          validations: {
-            some: {
-              validateurId: managerId,
-            },
-          },
-        },
-      };
-
-      // Add search term to filter demandes by text search (if provided)
-      if (search) {
-        whereConditions.OR = [
-          {
-            user: {
-              firstName: {
-                contains: search,
-                mode: "insensitive",
-              },
-            },
-          },
-          {
-            user: {
-              lastName: {
-                contains: search,
-                mode: "insensitive",
-              },
-            },
-          },
-          {
-            user: {
-              username: {
-                contains: search,
-                mode: "insensitive",
-              },
-            },
-          },
-          {
-            user: {
-              email: {
-                contains: search,
-                mode: "insensitive",
-              },
-            },
-          },
-        ];
-      }
-
-      // Add filterStatus to filter by demande status (if provided)
-      if (filterStatus) {
-        whereConditions.status = filterStatus;
-      }
-
-      // Query the database with the constructed where conditions
-      const demandes = await prisma.demande.findMany({
-        where: whereConditions,
         include: {
-          user: {
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
-              username: true,
-            },
-          },
-          validations: {
+          demande: {
             include: {
-              validateur: {
+              user: {
                 select: {
                   firstName: true,
                   lastName: true,
                   email: true,
+                  username: true,
                 },
               },
-            },
-            orderBy: {
-              ordre: "asc",
-            },
-          },
+              validations: {
+                include: {
+                  validateur: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                      email: true,
+                    },
+                  },
+                },
+                orderBy: {
+                  ordre: "asc",
+                },
+              },
+            }
+          }
         },
         orderBy: {
-          createdAt: "desc",
-        },
+          ordre: "asc"
+        }
       });
+
+      console.log("✅ Validations EN_ATTENTE pour ce manager:", validationsEnAttente.length);
+
+      // 2. Filtrer celles où c'est vraiment le tour du manager
+      const demandesAValider = [];
+
+      for (const validation of validationsEnAttente) {
+        const demande = validation.demande;
+        
+        // Vérifier si toutes les validations précédentes sont approuvées
+        const validationsPrecedentes = demande.validations.filter(v => v.ordre < validation.ordre);
+        const toutesApprouvees = validationsPrecedentes.every(v => v.status === 'APPROUVEE');
+        
+        console.log(`📋 Demande ${demande.id} - Ordre ${validation.ordre}:`);
+        console.log(`   Validations précédentes: ${validationsPrecedentes.length}`);
+        console.log(`   Toutes approuvées: ${toutesApprouvees}`);
+        
+        if (toutesApprouvees) {
+          // Appliquer les filtres de recherche
+          let inclureDemande = true;
+          
+          // Filtre par recherche textuelle
+          if (search) {
+            const searchLower = search.toLowerCase();
+            const userMatch = 
+              demande.user.firstName?.toLowerCase().includes(searchLower) ||
+              demande.user.lastName?.toLowerCase().includes(searchLower) ||
+              demande.user.username?.toLowerCase().includes(searchLower) ||
+              demande.user.email?.toLowerCase().includes(searchLower);
+            
+            inclureDemande = userMatch;
+          }
+          
+          // Filtre par statut
+          if (filterStatus && demande.status !== filterStatus) {
+            inclureDemande = false;
+          }
+          
+          if (inclureDemande) {
+            // Ajouter des infos utiles pour le frontend
+            const demandeAvecInfo = {
+              ...demande,
+              validationEnCours: {
+                id: validation.id,
+                ordre: validation.ordre,
+                isFirstValidation: validation.ordre === 1,
+                isFinalValidation: validation.ordre === 4,
+                totalValidations: demande.validations.length
+              }
+            };
+            
+            demandesAValider.push(demandeAvecInfo);
+          }
+        }
+      }
+
+      console.log(`🎯 Demandes où c'est le tour du manager: ${demandesAValider.length}`);
 
       res.json({
         success: true,
-        demandes: demandes,
-        count: demandes.length,
+        demandes: demandesAValider,
+        count: demandesAValider.length,
+        debug: {
+          managerId: user.id,
+          totalValidationsEnAttente: validationsEnAttente.length,
+          demandesFiltered: demandesAValider.length
+        }
       });
+
     } catch (error) {
       console.error("Erreur récupération demandes à valider:", error);
       res.status(500).json({
         success: false,
         message: "Erreur lors de la récupération des demandes",
+        error: error.message
       });
     }
   }
 );
 
 
+router.post('/valider/:demandeId', keycloak.protect(), requireManager, async (req, res) => {
+  // Declare email status variables
+  let emailEnvoye = false;
+  let emailError = null;
 
+  try {
+    const { demandeId } = req.params;
+    const { action, commentaire } = req.body;
+    
+    // Validate action
+    if (!['APPROUVEE', 'REJETEE'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Action must be either APPROUVEE or REJETEE'
+      });
+    }
 
-
-
-router.post(
-  "/valider/:demandeId",
-  keycloak.protect(),
-  requireManager,
-  async (req, res) => {
-    try {
-      const { demandeId } = req.params;
-      const { action, commentaire } = req.body;
-      const managerId = req.user.id;
-
-      // Vérifier que l'action est valide
-      if (!["APPROUVEE", "REJETEE"].includes(action)) {
-        return res.status(400).json({
-          success: false,
-          message: "Action invalide. Utilisez APPROUVEE ou REJETEE",
-        });
-      }
-
-      // Récupérer la demande avec ses validations
-      const demande = await prisma.demande.findUnique({
+    // Get user and demande data
+    const userId = req.kauth.grant.access_token.content.sub;
+    
+    // Fetch user and demande with related user's email
+    const [user, demandeData] = await Promise.all([
+      prisma.user.findUnique({ where: { keycloakId: userId } }),
+      prisma.demande.findUnique({
         where: { id: demandeId },
         include: {
-          validations: {
-            orderBy: { ordre: "asc" },
-          },
-        },
-      });
-
-      if (!demande) {
-        return res.status(404).json({
-          success: false,
-          message: "Demande non trouvée",
-        });
-      }
-
-      // Vérifier si ce manager a déjà validé cette demande
-      const validationExistante = demande.validations.find(
-        (v) => v.validateurId === managerId
-      );
-
-      if (validationExistante) {
-        return res.status(400).json({
-          success: false,
-          message: "Vous avez déjà validé cette demande",
-        });
-      }
-
-      // Trouver une validation EN_ATTENTE disponible pour ce manager
-      const validationDisponible = demande.validations.find(
-        (v) => v.status === "EN_ATTENTE" && !v.validateurId
-      );
-
-      if (!validationDisponible) {
-        return res.status(400).json({
-          success: false,
-          message: "Aucune validation disponible pour cette demande",
-        });
-      }
-
-      // Cas 1: REJET - Une seule rejection suffit pour rejeter toute la demande
-      if (action === "REJETEE") {
-        // Vérifier qu'un commentaire est fourni pour le rejet
-        if (!commentaire || commentaire.trim() === "") {
-          return res.status(400).json({
-            success: false,
-            message: "Un commentaire est obligatoire pour rejeter une demande",
-          });
+          user: { // Include the related user to get their email
+            select: {
+              email: true,
+              firstName: true,
+              lastName: true
+            }
+          }
         }
+      })
+    ]);
 
-        // Mettre à jour la validation avec le rejet
-        await prisma.validation.update({
-          where: { id: validationDisponible.id },
-          data: {
-            status: "REJETEE",
-            commentaire: commentaire,
-            dateAction: new Date(),
-            validateurId: managerId,
-          },
-        });
-
-        // Rejeter immédiatement toute la demande
-        await prisma.demande.update({
-          where: { id: demandeId },
-          data: {
-            status: "REJETEE",
-            commentaireRejet: commentaire,
-          },
-        });
-
-        return res.json({
-          success: true,
-          message: "Demande rejetée avec succès",
-          finalStatus: "REJETEE",
-        });
-      }
-
-      // Cas 2: APPROBATION
-      if (action === "APPROUVEE") {
-        // Mettre à jour la validation avec l'approbation
-        await prisma.validation.update({
-          where: { id: validationDisponible.id },
-          data: {
-            status: "APPROUVEE",
-            commentaire: commentaire || null,
-            dateAction: new Date(),
-            validateurId: managerId,
-          },
-        });
-
-        // Vérifier si toutes les validations sont maintenant complètes
-        const validationsRestantes = await prisma.validation.count({
-          where: {
-            demandeId: demandeId,
-            status: "EN_ATTENTE",
-          },
-        });
-
-        let finalStatus;
-        let message;
-
-        if (validationsRestantes === 0) {
-          // Toutes les validations sont faites, approuver définitivement la demande
-          await prisma.demande.update({
-            where: { id: demandeId },
-            data: { status: "APPROUVEE" },
-          });
-
-          finalStatus = "APPROUVEE";
-          message =
-            "Demande approuvée définitivement ! Toutes les validations sont complètes.";
-        } else {
-          // Il reste des validations, garder le statut EN_ATTENTE
-          // Pas besoin de changer le statut car la demande reste en attente d'autres validations
-          finalStatus = "EN_ATTENTE";
-          message = `Validation approuvée avec succès. Il reste ${validationsRestantes} validation(s) à effectuer.`;
-        }
-
-        return res.json({
-          success: true,
-          message: message,
-          finalStatus: finalStatus,
-          validationsRestantes: validationsRestantes,
-        });
-      }
-    } catch (error) {
-      console.error("Erreur lors de la validation:", error);
-      res.status(500).json({
+    if (!demandeData?.user?.email) {
+      return res.status(400).json({
         success: false,
-        message: "Erreur lors de la validation de la demande",
+        message: "No email address found for the requester"
       });
     }
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Utilisateur non trouvé" 
+      });
+    }
+
+    const demandeForEmail = {
+      ...demandeData,
+      email: demandeData.user.email, // Map user email to demande object
+      firstName: demandeData.firstName,
+      lastName: demandeData.lastName,
+      // Include any other fields needed for the email template
+      direction: demandeData.direction,
+      environnement: demandeData.environnement,
+      dateDebut: demandeData.dateDebut,
+      dateFin: demandeData.dateFin,
+      finaliteAccess: demandeData.finaliteAccess,
+      schema: demandeData.schema,
+      demandeur: demandeData.demandeur,
+      id: demandeData.id
+    };
+
+    // Find pending validation
+    const validationEnCours = await prisma.validation.findFirst({
+      where: {
+        demandeId: demandeId,
+        validateurId: user.id,
+        status: 'EN_ATTENTE'
+      },
+      orderBy: { ordre: 'asc' }
+    });
+    
+    if (!validationEnCours) {
+      return res.status(400).json({
+        success: false,
+        message: "Aucune validation en attente pour vous sur cette demande"
+      });
+    }
+    
+    // Check if it's their turn
+    const validationsPrecedentes = await prisma.validation.findMany({
+      where: {
+        demandeId: demandeId,
+        ordre: { lt: validationEnCours.ordre }
+      }
+    });
+    
+    const toutesApprouvees = validationsPrecedentes.every(v => v.status === 'APPROUVEE');
+    if (!toutesApprouvees) {
+      return res.status(400).json({
+        success: false,
+        message: "Ce n'est pas encore votre tour de valider"
+      });
+    }
+    
+    // Update the validation
+    await prisma.validation.update({
+      where: { id: validationEnCours.id },
+      data: {
+        status: action,
+        commentaire: commentaire,
+        dateAction: new Date()
+      }
+    });
+    
+    if (action === 'REJETEE') {
+      // Reject the entire request
+      await prisma.demande.update({
+        where: { id: demandeId },
+        data: { 
+          status: 'REJETEE',
+          commentaireRejet: commentaire 
+        }
+      });
+      console.log("envoi email rejet 0");
+      // Send rejection email
+      try {
+        console.log("envoi email rejet 1");
+        await envoyerEmailRejet(demandeForEmail, user, commentaire);
+        console.log("envoi email rejet 2");
+        emailEnvoye = true;
+      } catch (error) {
+        emailError = error.message;
+        console.error('Email rejection error:', error);
+      }
+      console.log("envoi email rejet 4");
+      return res.json({
+        success: true,
+        message: "Demande rejetée avec succès",
+        action: "REJETEE",
+        emailEnvoye,
+        emailError
+      });
+    } else {
+      // Check remaining validations
+      const validationsRestantes = await prisma.validation.findMany({
+        where: {
+          demandeId: demandeId,
+          status: 'EN_ATTENTE'
+        }
+      });
+      
+      if (validationsRestantes.length === 0) {
+        // All approved - final approval
+        await prisma.demande.update({
+          where: { id: demandeId },
+          data: { status: 'APPROUVEE' }
+        });
+
+        // Send approval email
+        try {
+          await envoyerEmailApprobation(demandeForEmail, user);
+          emailEnvoye = true;
+        } catch (error) {
+          emailError = error.message;
+          console.error('Email approval error:', error);
+        }
+        
+        return res.json({
+          success: true,
+          message: "Demande approuvée définitivement",
+          action: "APPROUVEE_FINALE",
+          emailEnvoye,
+          emailError
+        });
+      } else {
+        // Intermediate approval
+        return res.json({
+          success: true,
+          message: "Validation approuvée, en attente des autres validateurs",
+          action: "APPROUVEE_ETAPE",
+          validationsRestantes: validationsRestantes.length
+        });
+      }
+    }
+    
+  } catch (error) {
+    console.error("Erreur validation:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Erreur lors de la validation",
+      error: error.message
+    });
   }
-);
-
-// // ADMIN ONLY: Mettre à jour les champs SPOC
-// router.patch('/spoc/:demandeId', keycloak.protect(), requireAdmin, async (req, res) => {
-//   try {
-//     const { demandeId } = req.params;
-//     const { spocData, spocDt } = req.body;
-
-//     const demande = await prisma.demande.update({
-//       where: { id: demandeId },
-//       data: {
-//         spocData: spocData,
-//         spocDt: spocDt
-//       }
-//     });
-
-//     res.json({
-//       success: true,
-//       message: 'Champs SPOC mis à jour avec succès',
-//       demande: demande
-//     });
-
-//   } catch (error) {
-//     console.error('Erreur mise à jour SPOC:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Erreur lors de la mise à jour'
-//     });
-//   }
-// });
-
-// // Fonction utilitaire pour obtenir le statut détaillé d'une demande
-// router.get('/status/:demandeId', keycloak.protect(), requireUser, async (req, res) => {
-//   try {
-//     const { demandeId } = req.params;
-
-//     const demande = await prisma.demande.findUnique({
-//       where: { id: demandeId },
-//       include: {
-//         validations: {
-//           include: {
-//             validateur: {
-//               select: {
-//                 firstName: true,
-//                 lastName: true,
-//                 email: true
-//               }
-//             }
-//           },
-//           orderBy: { ordre: 'asc' }
-//         }
-//       }
-//     });
-
-//     if (!demande) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Demande non trouvée'
-//       });
-//     }
-
-//     // Calculer les statistiques de validation
-//     const totalValidations = demande.validations.length;
-//     const validationsApprouvees = demande.validations.filter(v => v.status === 'APPROUVEE').length;
-//     const validationsRejetees = demande.validations.filter(v => v.status === 'REJETEE').length;
-//     const validationsEnAttente = demande.validations.filter(v => v.status === 'EN_ATTENTE').length;
-
-//     res.json({
-//       success: true,
-//       demande: demande,
-//       statusSummary: {
-//         total: totalValidations,
-//         approuvees: validationsApprouvees,
-//         rejetees: validationsRejetees,
-//         enAttente: validationsEnAttente,
-//         progression: `${validationsApprouvees}/${totalValidations} validations approuvées`
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Erreur récupération statut:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Erreur lors de la récupération du statut'
-//     });
-//   }
-// });
+});
 
 
-
-// Route to serve/download files
+// route for open the file  wothout downloading 
 router.get(
   "/file/:demandeId",
   keycloak.protect(),
@@ -953,7 +811,7 @@ router.get(
       if (!user) {
         return res.status(404).json({ success: false, message: "Utilisateur non trouvé" });
       }
-      console.log("test0");
+
       // Get the demande with file info
       const demande = await prisma.demande.findFirst({
         where: {
@@ -961,7 +819,7 @@ router.get(
           // userId: user.id, // Ensure user owns this demande
         },
       });
-console.log("test1");
+
       if (!demande) {
         return res.status(404).json({ success: false, message: "Demande non trouvée" });
       }
@@ -1015,7 +873,6 @@ console.log("test1");
     }
   }
 );
-
 // Route to get file info without downloading
 router.get(
   "/file-info/:demandeId",
@@ -1092,7 +949,6 @@ router.get(
     }
   }
 );
-
 // Route to get all demandes with file info for dashboard
 router.get(
   "/list",
@@ -1141,6 +997,9 @@ router.get(
     }
   }
 );
+
+
+
 
 
 

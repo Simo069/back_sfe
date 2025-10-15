@@ -1,13 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
-// generator client {
-//   provider = "prisma-client-js"
-//   output   = "../src/generated/prisma"
-// }
 
 generator client {
   provider = "prisma-client-js"
@@ -31,6 +21,10 @@ model User {
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 
+  resetToken       String? 
+  resetTokenExpiry DateTime?
+
+
   // Relation avec le département (pour les managers)
   departement   Departement? @relation("DepartementManagers", fields: [departementId], references: [id])
   departementId String?
@@ -44,7 +38,7 @@ model User {
 model Demande {
   id String @id @default(uuid()) @db.Uuid
 
-  // Informations du demandeur
+
   demandeur String
   firstName String @map("first_name")
   lastName  String @map("last_name")
@@ -67,7 +61,7 @@ model Demande {
   attachmentName String? @map("attachment_name")
   attachmentPath String? @map("attachment_path")
 
-  // SPOC fields (à remplir après)
+  // SPOC fields (a remplir apres)
   spocData String? @map("spoc_data")
   spocDt   String? @map("spoc_dt")
 
