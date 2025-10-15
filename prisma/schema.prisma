@@ -21,6 +21,10 @@ model User {
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 
+  resetToken       String? 
+  resetTokenExpiry DateTime?
+
+
   // Relation avec le département (pour les managers)
   departement   Departement? @relation("DepartementManagers", fields: [departementId], references: [id])
   departementId String?

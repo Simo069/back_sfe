@@ -5,6 +5,16 @@ const PORT = process.env.PORT || 3001;
 
 const startServer = async () => {
   try {
+
+     // Test des variables d'environnement
+    console.log("✅ PORT:", process.env.PORT);
+    console.log("✅ NODE_ENV:", process.env.NODE_ENV);
+    console.log("✅ FRONT_URL:", process.env.FRONT_URL);
+    console.log("✅ KEYCLOAK_SERVER_URL:", process.env.KEYCLOAK_BASE_URL);
+    console.log("✅ SMTP_HOST:", process.env.SMTP_HOST);
+    console.log("✅ SMTP_USER:", process.env.SMTP_USER);
+
+
     // Test database connection
     await prisma.$connect();
     console.log('✅ Database connection established successfully.');

@@ -7,7 +7,7 @@ const memoryStore = new session.MemoryStore();
 
 const keycloakConfig = {
   realm: 'realmsfe',
-  'auth-server-url': 'http://localhost:4000/',
+  'auth-server-url': 'http://localhost:8080/',
   'ssl-required': 'external',
   resource: 'sfeclient',
   'public-client': false,
